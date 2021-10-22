@@ -1,6 +1,8 @@
 module;
 
+#ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS	// This is a very unsafe module.
+#endif
 
 // C++
 #include <string>	// stof

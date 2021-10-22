@@ -169,6 +169,7 @@
     <ClCompile Include="imgui\imgui_widgets.cpp" />
     <ClCompile Include="imgui\misc\cpp\imgui_stdlib.cpp" />
     <ClCompile Include="imgui\misc\freetype\imgui_freetype.cpp" />
+    <ClCompile Include="UtlImage.ixx" />
     <ClCompile Include="UtlKeyValues.ixx" />
   </ItemGroup>
   <ItemGroup>

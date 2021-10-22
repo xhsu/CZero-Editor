@@ -10,3 +10,6 @@
 [submodule "Hydrogenium"]
 	path = Hydrogenium
 	url = https://github.com/xhsu/Hydrogenium
+[submodule "stb"]
+	path = stb
+	url = https://github.com/nothings/stb

@@ -42,6 +42,7 @@
     <ClCompile Include="..\Hydrogenium\UtlString.ixx">
       <Filter>Hydrogenium</Filter>
     </ClCompile>
+    <ClCompile Include="UtlImage.ixx" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="ImGui">
