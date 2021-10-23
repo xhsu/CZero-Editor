@@ -321,13 +321,21 @@ constexpr decltype(auto) operator<< (const U& lhs, const Enumerator_t& rhs) { re
 
 #pragma endregion ScopedEnumOperator
 
+namespace Tasks
+{
+	constexpr auto REQ_COUNT = ~((1 << TaskType_e::killall) | (1 << TaskType_e::rescueall));
+	constexpr auto REQ_WEAPON = (1 << TaskType_e::injurewith) | (1 << TaskType_e::killwith) | (1 << TaskType_e::headshotwith);
+	constexpr auto SURVIVE = ~((1 << TaskType_e::killall) | (1 << TaskType_e::rescueall) | (1 << TaskType_e::defendhostages) | (1 << TaskType_e::hostagessurvive));
+	constexpr auto INAROW = ~((1 << TaskType_e::killall) | (1 << TaskType_e::winfast) | (1 << TaskType_e::rescueall) | (1 << TaskType_e::defendhostages) | (1 << TaskType_e::hostagessurvive));
+};
+
 struct Task_t
 {
 	Task_t() {}
 	Task_t(const std::string& sz) { Parse(sz); }
 	virtual ~Task_t() {}
 
-	void Parse(const std::string& sz)
+	void Parse(const std::string& sz) noexcept
 	{
 		std::vector<std::string> rgszTokens;
 		UTIL_Split(sz, rgszTokens, " "s);
@@ -361,24 +369,36 @@ struct Task_t
 		}
 	}
 
-	std::string ToString(void) const
+	std::string ToString(void) const noexcept
 	{
 		std::string ret = g_rgszTaskNames[(unsigned)m_iType] + " "s;
 
-		if (m_iCount)
+		if (m_iCount && (1 << m_iType) & Tasks::REQ_COUNT)
 			ret += std::to_string(m_iCount) + ' ';
 
-		if (m_iWeapon != Weapon_e::_LAST)
+		if (m_iWeapon != Weapon_e::_LAST && (1 << m_iType) & Tasks::REQ_WEAPON)
 			ret += g_rgszWeaponNames[(unsigned)m_iWeapon] + " "s;
 
-		if (m_bSurvive)
+		if (m_bSurvive && (1 << m_iType) & Tasks::SURVIVE)
 			ret += "survive"s + ' ';
 
-		if (m_bInARow)
+		if (m_bInARow && (1 << m_iType) & Tasks::INAROW)
 			ret += "inarow"s + ' ';
 
 		ret.pop_back();	// Remove ' ' at the end.
 		return ret;
+	}
+
+	void SanityCheck(void) noexcept
+	{
+		if (!((1 << m_iType) & Tasks::REQ_COUNT))
+			m_iCount = 0;
+		if (!((1 << m_iType) & Tasks::REQ_WEAPON))
+			m_iWeapon = Weapon_e::_LAST;
+		if (!((1 << m_iType) & Tasks::SURVIVE))
+			m_bSurvive = false;
+		if (!((1 << m_iType) & Tasks::INAROW))
+			m_bInARow = false;
 	}
 
 	TaskType_e m_iType{ TaskType_e::kill };
@@ -388,14 +408,6 @@ struct Task_t
 	bool m_bInARow{ false };
 };
 
-namespace Tasks
-{
-	constexpr auto REQ_COUNT = ~((1 << TaskType_e::killall) | (1 << TaskType_e::rescueall));
-	constexpr auto REQ_WEAPON = (1 << TaskType_e::injurewith) | (1 << TaskType_e::killwith) | (1 << TaskType_e::headshotwith);
-	constexpr auto SURVIVE = ~((1 << TaskType_e::killall) | (1 << TaskType_e::rescueall) | (1 << TaskType_e::defendhostages) | (1 << TaskType_e::hostagessurvive));
-	constexpr auto INAROW = ~((1 << TaskType_e::killall) | (1 << TaskType_e::winfast) | (1 << TaskType_e::rescueall) | (1 << TaskType_e::defendhostages) | (1 << TaskType_e::hostagessurvive));
-};
-
 struct Thumbnail_t : public Image_t
 {
 	inline ImVec2	Size() const noexcept { return ImVec2((float)m_iWidth, (float)m_iHeight); }
@@ -403,9 +415,59 @@ struct Thumbnail_t : public Image_t
 
 struct Map_t
 {
-	Map_t() {}
-	Map_t(NewKeyValues* pkv) { Parse(pkv); }
-	virtual ~Map_t() {}
+	Map_t() noexcept {}
+	Map_t(NewKeyValues* pkv) noexcept { Parse(pkv); }
+	Map_t(const Map_t& rhs) noexcept :
+		m_szMapName(rhs.m_szMapName),
+		m_rgszBots(rhs.m_rgszBots),
+		m_iMinEnemies(rhs.m_iMinEnemies),
+		m_iThreshold(rhs.m_iThreshold),
+		m_Tasks(rhs.m_Tasks),
+		m_bFriendlyFire(rhs.m_bFriendlyFire),
+		m_szConsoleCommands(rhs.m_szConsoleCommands),
+		m_Thumbnail(m_Thumbnail),
+		m_WiderPreview(m_WiderPreview)
+	{
+	}
+	Map_t& operator=(const Map_t& rhs) noexcept
+	{
+		m_szMapName = rhs.m_szMapName;
+		m_rgszBots = rhs.m_rgszBots;
+		m_iMinEnemies = rhs.m_iMinEnemies;
+		m_iThreshold = rhs.m_iThreshold;
+		m_Tasks = rhs.m_Tasks;
+		m_bFriendlyFire = rhs.m_bFriendlyFire;
+		m_szConsoleCommands = rhs.m_szConsoleCommands;
+		memcpy(&m_Thumbnail, &rhs.m_Thumbnail, sizeof(m_Thumbnail));
+		memcpy(&m_WiderPreview, &rhs.m_WiderPreview, sizeof(m_WiderPreview));
+		return *this;
+	}
+	Map_t(Map_t&& rhs) noexcept :
+		m_szMapName(std::move(rhs.m_szMapName)),
+		m_rgszBots(std::move(rhs.m_rgszBots)),
+		m_iMinEnemies(rhs.m_iMinEnemies),
+		m_iThreshold(rhs.m_iThreshold),
+		m_Tasks(std::move(rhs.m_Tasks)),
+		m_bFriendlyFire(rhs.m_bFriendlyFire),
+		m_szConsoleCommands(std::move(rhs.m_szConsoleCommands)),
+		m_Thumbnail(std::move(m_Thumbnail)),
+		m_WiderPreview(std::move(m_WiderPreview))
+	{
+	}
+	Map_t& operator=(Map_t&& rhs) noexcept
+	{
+		m_szMapName = std::move(rhs.m_szMapName);
+		m_rgszBots = std::move(rhs.m_rgszBots);
+		m_iMinEnemies = rhs.m_iMinEnemies;
+		m_iThreshold = rhs.m_iThreshold;
+		m_Tasks = std::move(rhs.m_Tasks);
+		m_bFriendlyFire = rhs.m_bFriendlyFire;
+		m_szConsoleCommands = std::move(rhs.m_szConsoleCommands);
+		m_Thumbnail = std::move(m_Thumbnail);
+		m_WiderPreview = std::move(m_WiderPreview);
+		return *this;
+	}
+	virtual ~Map_t() noexcept {}
 
 	void Parse(NewKeyValues* pkv)
 	{
@@ -594,8 +656,10 @@ struct CareerGame_t
 		}
 		pkv->AddSubKey(p);
 
+		p = new NewKeyValues("Maps");
 		for (const auto& Map : m_Maps)
-			pkv->AddSubKey(Map.Save());
+			p->AddSubKey(Map.Save());
+		pkv->AddSubKey(p);
 
 		return pkv;
 	}
@@ -1332,7 +1396,7 @@ namespace MissionPack
 
 		if (fs::exists(Files[FILE_OVERVIEW]))
 		{
-			// #TODO
+			// Overfiew file parse #TODO
 		}
 
 		if (fs::exists(Files[FILE_THUMBNAIL]))
@@ -1364,10 +1428,8 @@ namespace MissionPack
 		Files_t rgFiles;
 		CompileFileList(rgFiles, hFolder, false);
 
-		//if ()
-		//{
-		//	Something to do with Overview.vdf #TODO
-		//}
+		if (!fs::exists(rgFiles[FILE_OVERVIEW]) && fs::exists(Files[FILE_OVERVIEW]))	// Properly output Overview.vdf #TODO
+			fs::copy_file(Files[FILE_OVERVIEW], rgFiles[FILE_OVERVIEW]);
 
 		if (!fs::exists(rgFiles[FILE_THUMBNAIL]) && fs::exists(Files[FILE_THUMBNAIL]))
 			fs::copy_file(Files[FILE_THUMBNAIL], rgFiles[FILE_THUMBNAIL]);
@@ -1423,12 +1485,18 @@ void ListKeyValue(NewKeyValues* pkv)
 
 void MainMenuBar(void)
 {
+	bool bSaveAsSelected = false;	// One frame variable.
+	static std::string szSaveTo;	// But this shouldn't.
+
 	if (ImGui::BeginMainMenuBar())
 	{
 		if (ImGui::BeginMenu("File"))
 		{
 			if (ImGui::MenuItem("Save", "Ctrl+S") && !(g_bitsAsyncStatus & Async_e::UPDATING_MISSION_PACK_INFO))
 				MissionPack::Save();
+
+			if (ImGui::MenuItem("Save as...", "Ctrl+Alt+S") && !(g_bitsAsyncStatus & Async_e::UPDATING_MISSION_PACK_INFO))
+				bSaveAsSelected = true;
 
 			ImGui::EndMenu();
 		}
@@ -1443,6 +1511,30 @@ void MainMenuBar(void)
 		}
 
 		ImGui::EndMainMenuBar();
+	}
+
+	if (bSaveAsSelected)
+		ImGui::OpenPopup("Save as...");
+
+		// Always center this window when appearing
+	ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+
+	// Modal of Inserting character into list.
+	if (ImGui::BeginPopupModal("Save as...", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+	{
+		ImGui::Text("Save as... (Full mission pack path)");
+		ImGui::InputText("##SaveTo", &szSaveTo);
+
+		if (ImGui::Button("OK", ImVec2(120, 0)))
+		{
+			MissionPack::Save(szSaveTo);
+			ImGui::CloseCurrentPopup();
+		}
+
+		ImGui::SetItemDefaultFocus();
+		ImGui::SameLine();
+		if (ImGui::Button("Cancel", ImVec2(120, 0))) { ImGui::CloseCurrentPopup(); }
+		ImGui::EndPopup();
 	}
 }
 
@@ -1480,17 +1572,14 @@ void ConfigWindow(void)
 
 	if (ImGui::Begin("Config", &g_bShowConfigWindow))
 	{
-		//if (ImGui::InputText("Path", &g_szInputMissionPackPath) && fs::exists(g_szInputMissionPackPath))
-		//{
-		//	g_MissionPackPath = g_szInputMissionPackPath;
-		//	g_bitsAsyncStatus |= Async_e::REQ_UPDATE_MISSION_PACK;
-		//}
 
 		if (ImGui::InputText("##Game", &g_szInputGamePath))
 			fnOnGamePathChanged();
 
 		ImGui::SameLine();
 		ImGui::TextColored(g_bCurGamePathValid ? IMGUI_GREEN : IMGUI_RED, g_bCurGamePathValid ? "Valid" : "Invalid");
+
+		// #TODO add detection for CZCareerFix.amxx
 
 		if (!MissionPack::Name.empty())
 		{
@@ -1518,32 +1607,32 @@ void ConfigWindow(void)
 					);
 
 					t.detach();
-					//g_szInputGamePath = hPath.string();	// Wrong.
-					//fnOnGamePathChanged();
 				}
 			}
 		}
-
-		//if (!g_Thumbnails.m_iTexId)
-		//{
-		//	auto ret = UTIL_LoadTextureFromFile("thumbnail.tga", &g_Thumbnails.m_iTexId, &g_Thumbnails.m_iWidth, &g_Thumbnails.m_iHeight);
-		//	assert(ret);
-		//}
-
-		//ImGui::Image((void*)(intptr_t)g_Thumbnails.m_iTexId, g_Thumbnails.Size());
-
-		//if (!(g_bitsAsyncStatus & Async_e::MISSION_PACK_READY))
-		//	goto LAB_PATH_WINDOW_SKIP;
-
-		//ListKeyValue(g_pKV);
 	}
 
-LAB_PATH_WINDOW_SKIP:;
 	ImGui::End();	// Path
 }
 
 void CampaignWindow(void)
 {
+	static struct  
+	{
+		Names_t m_Enrolled{};
+		bool m_bShouldEnter{ false };
+		Names_t::iterator m_itInsertingPos;
+
+	} InsertionModal;
+
+	static struct  
+	{
+		Name_t m_szEnrolled{ ""s };
+		bool m_bShouldEnter{ false };
+		Names_t::iterator m_itReplacingPos;
+
+	} ReplacementModal;
+
 	if (g_bitsAsyncStatus & Async_e::UPDATING_MISSION_PACK_INFO || !g_bShowCampaignWindow)
 		return;
 
@@ -1570,18 +1659,179 @@ void CampaignWindow(void)
 
 				if (ImGui::CollapsingHeader("Characters", ImGuiTreeNodeFlags_None))
 				{
-					for (const auto& Character : g_BotProfiles)
+					// Enlist all characters in current difficulty.
+					for (auto iter = CareerGame.m_rgszCharacters.begin(); iter != CareerGame.m_rgszCharacters.end(); iter++)
 					{
-						auto it = std::find_if(CareerGame.m_rgszCharacters.begin(), CareerGame.m_rgszCharacters.end(),
-							[&Character](const Name_t& szName)
-							{
-								return szName == Character.m_szName;
-							}
-						);
+						ImGui::Selectable(iter->c_str());	// #TODO jump tp BOT editing screen.
 
-						bool bDummy = it != CareerGame.m_rgszCharacters.end();	// #TODO
-						ImGui::Selectable(Character.m_szName.c_str(), &bDummy);
+						// Right-click the name.
+						if (ImGui::BeginPopupContextItem())
+						{
+							if ((InsertionModal.m_bShouldEnter = ImGui::Selectable(UTIL_VarArgs("Insert before %s", iter->c_str()))) == true)
+								InsertionModal.m_itInsertingPos = iter;
+
+							else if ((InsertionModal.m_bShouldEnter = ImGui::Selectable("Insert at the end")) == true)
+								InsertionModal.m_itInsertingPos = CareerGame.m_rgszCharacters.end();
+
+							else if ((ReplacementModal.m_bShouldEnter = ImGui::Selectable(UTIL_VarArgs("Replace %s", iter->c_str()))) == true)
+								ReplacementModal.m_itReplacingPos = iter;
+
+							else if (ImGui::Selectable(UTIL_VarArgs("Rule out %s", iter->c_str())))
+							{
+								iter = CareerGame.m_rgszCharacters.erase(iter);
+								iter--;	// So we can iter++ later in the for loop.
+							}
+
+							ImGui::EndPopup();
+						}
+
+						if (ImGui::IsItemHovered())
+							ImGui::SetTooltip("Right-click to edit.\nDraw and draw item to reorder.");
+
+						// Drag and draw.
+						if (ImGui::IsItemActive() && !ImGui::IsItemHovered())
+						{
+							bool bMovingUp = (ImGui::GetMouseDragDelta(ImGuiMouseButton_Left).y < 0.f);
+							if (iter == CareerGame.m_rgszCharacters.begin() && bMovingUp)	// The first element shouldnot be able to moving up.
+								continue;
+
+							auto iterMovingTo = iter;
+							bMovingUp ? iterMovingTo-- : iterMovingTo++;
+
+							if (iterMovingTo == CareerGame.m_rgszCharacters.end())	// You can't moving to ... obliterate his name.
+								continue;
+
+							std::swap(*iter, *iterMovingTo);	// Have to dereference to actually swap.
+							ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
+						}
 					}
+
+#pragma region Character insertion modal
+					if (InsertionModal.m_bShouldEnter)
+						ImGui::OpenPopup("Inserting character...");
+
+					// Always center this window when appearing
+					ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+
+					// Modal of Inserting character into list.
+					if (ImGui::BeginPopupModal("Inserting character...", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+					{
+						InsertionModal.m_bShouldEnter = false;	// Clear the enter flag, but keep the iterator value.
+
+						if (ImGui::BeginListBox("##Add_character_ListBox", ImVec2(-FLT_MIN, 21 * ImGui::GetTextLineHeightWithSpacing())))
+						{
+							for (const auto& Character : g_BotProfiles)
+							{
+								auto it = std::find_if(CareerGame.m_rgszCharacters.begin(), CareerGame.m_rgszCharacters.end(),
+									[&Character](const std::string& szName)
+									{
+										return szName == Character.m_szName;
+									}
+								);
+
+								bool bAlreadyEnrolled = it != CareerGame.m_rgszCharacters.end();
+								if (bAlreadyEnrolled)
+									continue;
+
+								it = std::find_if(InsertionModal.m_Enrolled.begin(), InsertionModal.m_Enrolled.end(),
+									[&Character](const std::string& szName)
+									{
+										return szName == Character.m_szName;
+									}
+								);
+
+								bAlreadyEnrolled = it != InsertionModal.m_Enrolled.end();
+
+								if (ImGui::Selectable(Character.m_szName.c_str(), bAlreadyEnrolled))
+								{
+									if (bAlreadyEnrolled)	// Which means deselect.
+										InsertionModal.m_Enrolled.erase(it);
+									else
+										InsertionModal.m_Enrolled.emplace_back(Character.m_szName);
+								}
+							}
+
+							ImGui::EndListBox();
+						}
+
+						if (ImGui::Button("OK", ImVec2(120, 0)))
+						{
+							ImGui::CloseCurrentPopup();
+							CareerGame.m_rgszCharacters.insert(InsertionModal.m_itInsertingPos, InsertionModal.m_Enrolled.begin(), InsertionModal.m_Enrolled.end());
+							InsertionModal.m_Enrolled.clear();
+						}
+
+						ImGui::SetItemDefaultFocus();
+						ImGui::SameLine();
+
+						if (ImGui::Button("Cancel", ImVec2(120, 0)))
+						{
+							ImGui::CloseCurrentPopup();
+							InsertionModal.m_Enrolled.clear();
+						}
+
+						ImGui::EndPopup();
+					}
+#pragma endregion Character insertion modal
+
+#pragma region Character replacement modal
+					if (ReplacementModal.m_bShouldEnter)
+						ImGui::OpenPopup("Replace character...");
+
+					if (ImGui::BeginPopupModal("Replace character...", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+					{
+						ReplacementModal.m_bShouldEnter = false;	// Clear the enter flag, but keep the iterator value.
+
+						if (ImGui::BeginListBox("##Add_character_ListBox", ImVec2(-FLT_MIN, 21 * ImGui::GetTextLineHeightWithSpacing())))
+						{
+							for (const auto& Character : g_BotProfiles)
+							{
+								auto it = std::find_if(CareerGame.m_rgszCharacters.begin(), CareerGame.m_rgszCharacters.end(),
+									[&Character](const std::string& szName)
+									{
+										return szName == Character.m_szName;
+									}
+								);
+
+								bool bAlreadyEnrolled = it != CareerGame.m_rgszCharacters.end();
+								if (bAlreadyEnrolled)
+									continue;
+
+								bAlreadyEnrolled = Character.m_szName == ReplacementModal.m_szEnrolled;
+
+								if (ImGui::Selectable(Character.m_szName.c_str(), bAlreadyEnrolled))
+								{
+									if (bAlreadyEnrolled)	// Which means deselect.
+										ReplacementModal.m_szEnrolled.clear();
+									else
+										ReplacementModal.m_szEnrolled = Character.m_szName;
+								}
+							}
+
+							ImGui::EndListBox();
+						}
+
+						if (ImGui::Button("OK", ImVec2(120, 0)))
+						{
+							ImGui::CloseCurrentPopup();
+							*ReplacementModal.m_itReplacingPos = std::move(ReplacementModal.m_szEnrolled);
+							ReplacementModal.m_szEnrolled.clear();
+						}
+
+						ImGui::SetItemDefaultFocus();
+						ImGui::SameLine();
+
+						if (ImGui::Button("Cancel", ImVec2(120, 0)))
+						{
+							ImGui::CloseCurrentPopup();
+							ReplacementModal.m_szEnrolled.clear();
+						}
+
+						ImGui::EndPopup();
+					}
+#pragma endregion Character replacement modal
+
+					// Collapsing header. Nothing to pop.
 				}
 
 				if (ImGui::CollapsingHeader("Cost Availability", ImGuiTreeNodeFlags_DefaultOpen))
@@ -1627,6 +1877,7 @@ void MapsWindow(void)
 					continue;
 
 				auto& CareerGame = MissionPack::CareerGames[i];
+				auto& szCurDifficulty = g_rgszDifficultyNames[(size_t)i];
 
 				if (ImGui::BeginTable("Table: Maps", 3, bitsTableFlags, vecSize))
 				{
@@ -1654,53 +1905,87 @@ void MapsWindow(void)
 						ImGui::TableSetColumnIndex(iColumnCount[(size_t)i]);
 						ImGui::Text(Map.m_szMapName.c_str());
 
+						static Map_t MapCopy{};	// Make a copy if we needs to enter editor.
 						if (ImGui::ImageButton((void*)(intptr_t)Map.m_Thumbnail.m_iTexId, Map.m_Thumbnail.Size()))
-							ImGui::OpenPopup(Map.m_szMapName.c_str());
+						{
+							ImGui::OpenPopup(UTIL_VarArgs("%s##%s", Map.m_szMapName.c_str(), szCurDifficulty));
+							MapCopy = Map;	// Make a copy only once. Or our changes will be kept after 1 frame.
+						}
 
 						// Always center this window when appearing
 						ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 
-						if (ImGui::BeginPopupModal(Map.m_szMapName.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+						// Map task editor.
+						if (ImGui::BeginPopupModal(UTIL_VarArgs("%s##%s", Map.m_szMapName.c_str(), szCurDifficulty), nullptr, ImGuiWindowFlags_AlwaysAutoResize))
 						{
-							ImGui::Image((void*)(intptr_t)Map.m_WiderPreview.m_iTexId, Map.m_WiderPreview.Size());
+							// List all potential teammates in the current difficulty.
+							// Why? Because they can't be assign as your enemy at the same time.
+							Names_t& BotTeammates = MissionPack::CareerGames[i].m_rgszCharacters;
 
-							if (ImGui::CollapsingHeader(UTIL_VarArgs("%d Enem%s selected", Map.m_rgszBots.size(), Map.m_rgszBots.size() < 2 ? "y" : "ies")) &&
+							// Title picture.
+							ImGui::Image((void*)(intptr_t)MapCopy.m_WiderPreview.m_iTexId, MapCopy.m_WiderPreview.Size());
+
+							if (ImGui::CollapsingHeader(UTIL_VarArgs("%d Enem%s selected###EnemySelection", MapCopy.m_rgszBots.size(), MapCopy.m_rgszBots.size() < 2 ? "y" : "ies")) &&
 								ImGui::BeginListBox("##Enemys_ListBox", ImVec2(-FLT_MIN, 7 * ImGui::GetTextLineHeightWithSpacing())))
 							{
 								for (const auto& Character : g_BotProfiles)
 								{
-									auto it = std::find_if(Map.m_rgszBots.begin(), Map.m_rgszBots.end(),
+									if (std::find_if(BotTeammates.begin(), BotTeammates.end(),
+										[&Character](const Name_t& szOther)
+										{
+											return szOther == Character.m_szName;
+										}
+									) != BotTeammates.end())
+									{
+										continue;	// Skip drawing if our candidate is our potential teammate.
+									}
+
+									auto it = std::find_if(MapCopy.m_rgszBots.begin(), MapCopy.m_rgszBots.end(),
 										[&Character](const Name_t& szOther)
 										{
 											return szOther == Character.m_szName;
 										}
 									);
 
-									bool bDummy = it != Map.m_rgszBots.end();	// #TODO
-									ImGui::Selectable(Character.m_szName.c_str(), &bDummy);
+									bool bEnrolled = it != MapCopy.m_rgszBots.end();
+
+									if (ImGui::Selectable(Character.m_szName.c_str(), bEnrolled))
+									{
+										if (bEnrolled)	// Select enrolled character -> rule them out.
+											MapCopy.m_rgszBots.erase(it);
+										else
+											MapCopy.m_rgszBots.emplace_back(Character.m_szName);
+									}
 								}
 
 								ImGui::EndListBox();
 							}
 
-							ImGui::InputInt("Min Enemies", &Map.m_iMinEnemies, 1, 5, ImGuiInputTextFlags_CharsDecimal);
-							ImGui::InputInt("Threshold", &Map.m_iThreshold, 1, 5, ImGuiInputTextFlags_CharsDecimal);
-							ImGui::Checkbox("Friendly Fire", &Map.m_bFriendlyFire);
-							ImGui::InputText("Console Command(s)", &Map.m_szConsoleCommands);
+							ImGui::InputInt("Min Enemies", &MapCopy.m_iMinEnemies, 1, 5, ImGuiInputTextFlags_CharsDecimal);
+							ImGui::InputInt("Threshold", &MapCopy.m_iThreshold, 1, 5, ImGuiInputTextFlags_CharsDecimal);
+							ImGui::Checkbox("Friendly Fire", &MapCopy.m_bFriendlyFire);
+							ImGui::InputText("Console Command(s)", &MapCopy.m_szConsoleCommands);
 
+							// Actual tasks.
 							if (ImGui::CollapsingHeader("Task(s)", ImGuiTreeNodeFlags_DefaultOpen))
 							{
-								for (auto& Task : Map.m_Tasks)
+
+								int iIdentifierIndex = 0;
+								//for (auto& Task : MapCopy.m_Tasks)
+								for (auto iter = MapCopy.m_Tasks.begin(); iter != MapCopy.m_Tasks.end(); iter++)
 								{
-									if (ImGui::TreeNode(Task.ToString().c_str()))
+									Task_t& Task = *iter;
+
+									if (ImGui::TreeNode(UTIL_VarArgs("%s###task%d", Task.ToString().c_str(), iIdentifierIndex)))
 									{
 										int iTaskType = (int)Task.m_iType;
 										ImGui::Combo("Task Type", &iTaskType, g_rgszTaskNames, IM_ARRAYSIZE(g_rgszTaskNames));
 										Task.m_iType = (TaskType_e)iTaskType;
+										Task.SanityCheck();	// For example, you reassign this task from 'kill' to 'killall', in which you can't have any parameter at all.
 
 										if (Task.m_iType == TaskType_e::winfast)
 											ImGui::InputInt("In 'X' seconds", &Task.m_iCount, 1, 15, ImGuiInputTextFlags_CharsDecimal);
-										else if ((1<<iTaskType) & Tasks::REQ_COUNT)
+										else if ((1 << iTaskType) & Tasks::REQ_COUNT)
 											ImGui::InputInt("Do 'X' times", &Task.m_iCount, 1, 5, ImGuiInputTextFlags_CharsDecimal);
 
 										if ((1 << iTaskType) & Tasks::REQ_WEAPON)
@@ -1718,10 +2003,33 @@ void MapsWindow(void)
 
 										ImGui::TreePop();
 									}
+
+									iIdentifierIndex++;
+
+									if (ImGui::BeginPopupContextItem())
+									{
+										if (ImGui::Selectable("Add task"))
+											MapCopy.m_Tasks.push_back(Task_t{});
+
+										if (MapCopy.m_Tasks.size() > 1 && ImGui::Selectable("Remove this"))	// Must have at least one task.
+										{
+											iter = MapCopy.m_Tasks.erase(iter);
+
+											if (iter != MapCopy.m_Tasks.begin())
+												iter--;	// For iter++ in the for loop.
+										}
+
+										ImGui::EndPopup();
+									}
 								}
 							}
 
-							if (ImGui::Button("OK", ImVec2(120, 0))) { ImGui::CloseCurrentPopup(); }
+							if (ImGui::Button("OK", ImVec2(120, 0)))
+							{
+								Map = std::move(MapCopy);
+								ImGui::CloseCurrentPopup();
+							}
+
 							ImGui::SetItemDefaultFocus();
 							ImGui::SameLine();
 							if (ImGui::Button("Cancel", ImVec2(120, 0))) { ImGui::CloseCurrentPopup(); }
