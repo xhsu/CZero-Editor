@@ -49,10 +49,13 @@ using namespace std::literals::string_literals;
 using namespace std::literals;
 using namespace std::string_literals;
 
+extern std::list<std::string> BSP_CompileResourceList(const char* pszBspPath);
 
 
-#define IMGUI_GREEN	ImVec4(0, 153.0f / 255.0f, 0, 1)
-#define IMGUI_RED	ImVec4(204.0f / 255.0f, 0, 0, 1)
+
+#define IMGUI_GREEN		ImVec4(0, 153.0f / 255.0f, 0, 1)
+#define IMGUI_YELLOW	ImVec4(1, 204.0f / 255.0f, 102.0f / 255.0f, 1)
+#define IMGUI_RED		ImVec4(204.0f / 255.0f, 0, 0, 1)
 
 #define CAST_TO_CHAR	reinterpret_cast<const char*>
 #define CAST_TO_UTF8	reinterpret_cast<const char8_t*>
@@ -68,8 +71,9 @@ enum class Difficulty_e : unsigned __int8;
 enum class Weapon_e : unsigned __int8;
 struct BotProfile_t;
 struct CareerGame_t;
-struct Map_t;
+struct Locus_t;
 struct Task_t;
+struct Map_t;
 
 using BYTE = unsigned __int8;
 using BotProfiles_t = std::list<BotProfile_t>;
@@ -77,11 +81,14 @@ using CareerGames_t = std::unordered_map<Difficulty_e, CareerGame_t>;
 using ConsoleCmd_t = std::string;
 using CostAvailability_t = std::array<int, 5>;
 using KeyValueSet_t = std::unordered_map<Difficulty_e, NewKeyValues*>;
-using Maps_t = std::list<Map_t>;
+using Loci_t = std::list<Locus_t>;
 using Name_t = std::string;
 using Names_t = std::list<Name_t>;
 using Tasks_t = std::list<Task_t>;
 using Weapons_t = std::vector<Weapon_e>;
+using Resources_t = std::list<std::string>;
+using Directories_t = std::list<fs::path>;
+using Maps_t = std::unordered_map<Name_t, Map_t>;
 
 const char* g_rgszTaskNames[] =
 {
@@ -218,6 +225,8 @@ enum Async_e : int
 	//REQ_UPDATE_MISSION_PACK		= 1 << 4,
 	UPDATING_MISSION_PACK_INFO	= 1 << 5,
 	//MISSION_PACK_READY			= 1 << 6,
+
+	UPDATING_MAPS_INFO			= 1 << 7,
 
 	_LAST = 1 << 30,
 };
@@ -410,7 +419,7 @@ struct Task_t
 
 struct Thumbnail_t : public Image_t
 {
-	constexpr Thumbnail_t(void) {}
+	constexpr Thumbnail_t(void) noexcept {}
 	Thumbnail_t(Thumbnail_t&& rhs) noexcept
 	{
 		m_iTexId = rhs.m_iTexId;
@@ -441,72 +450,234 @@ struct Thumbnail_t : public Image_t
 	inline ImVec2	Size() const noexcept { return ImVec2((float)m_iWidth, (float)m_iHeight); }
 };
 
+namespace HalfLifeFileStructure	// None of these function requires "\\" before relative path (to the game dir).
+{
+	inline fs::path			m_HLPath;
+	inline Directories_t	m_Directories;
+
+	bool Update(void) noexcept
+	{
+		if (!fs::exists(m_HLPath))
+		{
+			m_HLPath = g_GamePath.parent_path();
+
+			if (!fs::exists(m_HLPath))
+				return false;
+		}
+
+		m_Directories.clear();
+
+		for (const auto& hEntry : fs::directory_iterator(m_HLPath))
+		{
+			if (!hEntry.is_directory())
+				continue;
+
+			auto szDirName = hEntry.path().filename().string();
+			if (!szDirName.starts_with("valve"/*Half Life original game*/) && !szDirName.starts_with("cstrike") && !szDirName.starts_with("czero"))
+				continue;
+
+			if (szDirName.starts_with("czeror")/*CZ: Deleted Scenes*/)
+				continue;
+
+			m_Directories.emplace_back(hEntry.path());
+		}
+
+		m_Directories.sort(
+			[](const fs::path& lhs, const fs::path& rhs) -> bool	// Returns true when lhs should be placed before rhs.
+			{
+				auto szLhsDir = lhs.filename().string();
+				auto szRhsDir = rhs.filename().string();
+
+				auto fnDirCompare = [&]<StringLiteral _szDirBaseName>(void) -> bool
+				{
+					using T = decltype(_szDirBaseName);
+
+					if (szLhsDir.length() != szRhsDir.length())
+						return szLhsDir.length() > szRhsDir.length();
+
+					if (_szDirBaseName == szLhsDir)	// Place original dir at the last.
+						return false;
+
+					if (szRhsDir == _szDirBaseName)	// Place original dir at the last.
+						return true;
+
+					return szLhsDir[T::length + 1] < szRhsDir[T::length + 1];	// And place the localisation dirs before. (+1 for skipping the '_' between mod name and language name.)
+				};
+
+				if (szLhsDir.starts_with("czero") && szRhsDir.starts_with("czero"))
+					return fnDirCompare.template operator() <"czero">();	// #POTENTIAL_BUG	What the fuck, C++20? I think you are supporting templated lambda in a not-so-ugly way!
+
+				else if (szLhsDir.starts_with("valve") && szRhsDir.starts_with("valve"))
+					return fnDirCompare.template operator() <"valve">();
+
+				else if (szLhsDir.starts_with("cstrike") && szRhsDir.starts_with("cstrike"))
+					return fnDirCompare.template operator() <"cstrike">();
+
+				// CS and CZ always place before HL.
+				else if (szLhsDir[0] == 'c' && szRhsDir[0] == 'v')
+					return true;
+				else if (szLhsDir[0] == 'c' && szRhsDir[0] == 'v')
+					return false;
+
+				// CZ should place before CS.
+				else if (szLhsDir[1] == 'z' && szRhsDir[1] == 's')
+					return true;
+				else
+					return false;	// Have to return something afterall.
+			}
+		);
+
+		return !m_Directories.empty();
+	}
+
+	bool Exists(const std::string& szPath) noexcept
+	{
+		for (const auto& Directory : m_Directories)
+		{
+			if (fs::exists(Directory.string() + '\\' + szPath))
+				return true;
+		}
+
+		return false;
+	}
+
+	[[nodiscard]]
+	FILE* Open(const char* pszPath, const char* pszMode) noexcept	// #RET_FOPEN
+	{
+		for (const auto& Directory : m_Directories)
+		{
+			if (!fs::exists(Directory.string() + std::string("\\") + pszPath))
+				continue;
+
+			FILE* f = nullptr;
+			fopen_s(&f, pszPath, pszMode);
+			return f;
+		}
+
+		return nullptr;
+	}
+};
+
 struct Map_t
 {
 	Map_t() noexcept {}
-	Map_t(NewKeyValues* pkv) noexcept { Parse(pkv); }
-	Map_t(const Map_t& rhs) noexcept :
-		m_szMapName(rhs.m_szMapName),
+	virtual ~Map_t() noexcept {}
+
+	void Initialize(const fs::path& hPath) noexcept
+	{
+		m_Path = hPath;
+		m_szName = hPath.filename().string();
+		m_szName.erase(m_szName.find('.'));	// Remove the ext name.
+
+		CheckBasicFile();
+
+		m_rgszResources = BSP_CompileResourceList(m_Path.string().c_str());
+	}
+
+	void CheckBasicFile(void) noexcept
+	{
+		m_bBriefFileExists = HalfLifeFileStructure::Exists("maps\\" + m_szName + ".txt"s);
+		m_bDetailFileExists = HalfLifeFileStructure::Exists("maps\\" + m_szName + "_detail.txt"s);
+		m_bNavFileExists = HalfLifeFileStructure::Exists("maps\\" + m_szName + ".nav"s);
+		m_bOverviewFileExists = HalfLifeFileStructure::Exists("overviews\\" + m_szName + ".bmp"s) && HalfLifeFileStructure::Exists("overviews\\" + m_szName + ".txt"s);	// You can't miss either or them!
+		m_bThumbnailExists = HalfLifeFileStructure::Exists("gfx\\thumbnails\\maps\\" + m_szName + ".tga"s);
+		m_bWiderPreviewExists = HalfLifeFileStructure::Exists("gfx\\thumbnails\\maps_wide\\" + m_szName + ".tga"s);
+
+		if (m_bThumbnailExists)
+			ImageLoader::Add(g_GamePath.string() + "\\gfx\\thumbnails\\maps\\" + m_szName + ".tga"s, &m_Thumbnail);
+		if (m_bWiderPreviewExists)
+			ImageLoader::Add(g_GamePath.string() + "\\gfx\\thumbnails\\maps_wide\\" + m_szName + ".tga"s, &m_WiderPreview);
+		if (m_bBriefFileExists)
+		{
+			if (m_pszBriefString)
+			{
+				free(m_pszBriefString);
+				m_pszBriefString = nullptr;
+			}
+
+			if (FILE* f = HalfLifeFileStructure::Open(("maps\\" + m_szName + ".txt"s).c_str(), "rb"); f != nullptr)
+			{
+				fseek(f, 0, SEEK_END);
+				auto iSize = ftell(f);
+
+				m_pszBriefString = (char*)malloc(iSize + 1);
+				fseek(f, 0, SEEK_SET);
+				fread_s(m_pszBriefString, iSize + 1, iSize, 1, f);
+				m_pszBriefString[iSize] = '\0';
+
+				fclose(f);
+			}
+		}
+	}
+
+	Name_t			m_szName{ "Error - no name of this .bsp file." };	// .bsp ext name not included.
+	Resources_t		m_rgszResources{};
+	Thumbnail_t		m_Thumbnail{};
+	Thumbnail_t		m_WiderPreview{};
+	bool			m_bBriefFileExists{ false };	// The text to be shown in MOTD screen.
+	bool			m_bDetailFileExists{ false };	// texture detail file.
+	bool			m_bNavFileExists{ false };	// CZ bot nav mesh
+	bool			m_bOverviewFileExists{ false };
+	bool			m_bThumbnailExists{ false };	// Thumbnail image when selecting location.
+	bool			m_bWiderPreviewExists{ false };	// Preview image in preparation screen. (selecting teammates)
+	char*			m_pszBriefString{ nullptr };
+	fs::path		m_Path;
+};
+
+struct Locus_t
+{
+	Locus_t() noexcept {}
+	Locus_t(NewKeyValues* pkv) noexcept { Parse(pkv); }
+	Locus_t(const Locus_t& rhs) noexcept :
+		m_szMap(rhs.m_szMap),
 		m_rgszBots(rhs.m_rgszBots),
 		m_iMinEnemies(rhs.m_iMinEnemies),
 		m_iThreshold(rhs.m_iThreshold),
 		m_Tasks(rhs.m_Tasks),
 		m_bFriendlyFire(rhs.m_bFriendlyFire),
-		m_szConsoleCommands(rhs.m_szConsoleCommands),
-		m_Thumbnail(rhs.m_Thumbnail),
-		m_WiderPreview(rhs.m_WiderPreview)
+		m_szConsoleCommands(rhs.m_szConsoleCommands)
 	{
 	}
-	Map_t& operator=(const Map_t& rhs) noexcept
+	Locus_t& operator=(const Locus_t& rhs) noexcept
 	{
-		m_szMapName = rhs.m_szMapName;
+		m_szMap = rhs.m_szMap;
 		m_rgszBots = rhs.m_rgszBots;
 		m_iMinEnemies = rhs.m_iMinEnemies;
 		m_iThreshold = rhs.m_iThreshold;
 		m_Tasks = rhs.m_Tasks;
 		m_bFriendlyFire = rhs.m_bFriendlyFire;
 		m_szConsoleCommands = rhs.m_szConsoleCommands;
-		m_Thumbnail = rhs.m_Thumbnail;
-		m_WiderPreview = rhs.m_WiderPreview;	// #FORGET_HOW_TO_TEST_THE_CHANGE	orignally should be a memcpy() call.
 		return *this;
 	}
-	Map_t(Map_t&& rhs) noexcept :
-		m_szMapName(std::move(rhs.m_szMapName)),
+	Locus_t(Locus_t&& rhs) noexcept :
+		m_szMap(std::move(rhs.m_szMap)),
 		m_rgszBots(std::move(rhs.m_rgszBots)),
 		m_iMinEnemies(rhs.m_iMinEnemies),
 		m_iThreshold(rhs.m_iThreshold),
 		m_Tasks(std::move(rhs.m_Tasks)),
 		m_bFriendlyFire(rhs.m_bFriendlyFire),
-		m_szConsoleCommands(std::move(rhs.m_szConsoleCommands)),
-		m_Thumbnail(std::move(rhs.m_Thumbnail)),
-		m_WiderPreview(std::move(rhs.m_WiderPreview))
+		m_szConsoleCommands(std::move(rhs.m_szConsoleCommands))
 	{
 	}
-	Map_t& operator=(Map_t&& rhs) noexcept
+	Locus_t& operator=(Locus_t&& rhs) noexcept
 	{
-		m_szMapName = std::move(rhs.m_szMapName);
+		m_szMap = std::move(rhs.m_szMap);
 		m_rgszBots = std::move(rhs.m_rgszBots);
 		m_iMinEnemies = rhs.m_iMinEnemies;
 		m_iThreshold = rhs.m_iThreshold;
 		m_Tasks = std::move(rhs.m_Tasks);
 		m_bFriendlyFire = rhs.m_bFriendlyFire;
 		m_szConsoleCommands = std::move(rhs.m_szConsoleCommands);
-		//m_Thumbnail = std::move(m_Thumbnail);
-		//m_WiderPreview = std::move(m_WiderPreview);
-		memcpy(&m_Thumbnail, &rhs.m_Thumbnail, sizeof(m_Thumbnail));
-		memcpy(&m_WiderPreview, &rhs.m_WiderPreview, sizeof(m_WiderPreview));
 		return *this;
 	}
-	virtual ~Map_t() noexcept {}
+	virtual ~Locus_t() noexcept {}
 
 	void Parse(NewKeyValues* pkv)
 	{
 		m_rgszBots.clear();
 		m_Tasks.clear();
 
-		m_szMapName = pkv->GetName();
-		ImageLoader::Add(g_GamePath.string() + "\\gfx\\thumbnails\\maps\\"s + m_szMapName + ".tga"s, &m_Thumbnail);
-		ImageLoader::Add(g_GamePath.string() + "\\gfx\\thumbnails\\maps_wide\\"s + m_szMapName + ".tga"s, &m_WiderPreview);
+		m_szMap = pkv->GetName();
 
 		NewKeyValues* pSub = pkv->FindKey("bots");
 		if (pSub)
@@ -544,7 +715,7 @@ struct Map_t
 	[[nodiscard]]
 	NewKeyValues* Save(void) const	// #RET_HEAP_MEM
 	{
-		auto pkv = new NewKeyValues(m_szMapName.c_str());
+		auto pkv = new NewKeyValues(m_szMap.c_str());
 
 		auto p = new NewKeyValues("bots");
 		std::string szBotNames;
@@ -587,15 +758,13 @@ struct Map_t
 		return pkv;
 	}
 
-	Name_t			m_szMapName{ ""s };
+	Name_t			m_szMap{ ""s };
 	Names_t			m_rgszBots{};
 	int				m_iMinEnemies{ 3 };
 	int				m_iThreshold{ 2 };
 	Tasks_t			m_Tasks{};
 	bool			m_bFriendlyFire{ false };
 	ConsoleCmd_t	m_szConsoleCommands{ ""s };
-	Thumbnail_t		m_Thumbnail{};
-	Thumbnail_t		m_WiderPreview{};
 };
 
 struct CareerGame_t
@@ -636,7 +805,7 @@ struct CareerGame_t
 
 			while (p != nullptr)
 			{
-				m_Maps.emplace_back(p);
+				m_Loci.emplace_back(p);
 				p = p->GetNextSubKey();
 			}
 		}
@@ -649,7 +818,7 @@ struct CareerGame_t
 		m_iMatchWinBy = 2;
 		m_rgszCharacters.clear();
 		m_rgiCostAvailability = { 1, 6, 10, 15, 99 };
-		m_Maps.clear();
+		m_Loci.clear();
 	}
 
 	[[nodiscard]]
@@ -687,8 +856,8 @@ struct CareerGame_t
 		pkv->AddSubKey(p);
 
 		p = new NewKeyValues("Maps");
-		for (const auto& Map : m_Maps)
-			p->AddSubKey(Map.Save());
+		for (const auto& Locus : m_Loci)
+			p->AddSubKey(Locus.Save());
 		pkv->AddSubKey(p);
 
 		return pkv;
@@ -699,7 +868,7 @@ struct CareerGame_t
 	int m_iMatchWinBy{ 2 };
 	Names_t m_rgszCharacters{};
 	CostAvailability_t m_rgiCostAvailability{ 1, 6, 10, 15, 99 };
-	Maps_t m_Maps;
+	Loci_t m_Loci;
 };
 
 namespace BotProfileMgr
@@ -883,10 +1052,11 @@ struct BotProfile_t
 
 inline BotProfiles_t&		g_BotProfiles = BotProfileMgr::m_Profiles;
 inline GLFWwindow*			g_hGLFWWindow = nullptr;
-inline bool					g_bShowDebugWindow = false, g_bCurGamePathValid = false, g_bShowConfigWindow = true, g_bShowMapsWindow = false, g_bShowCampaignWindow = false;
+inline bool					g_bShowDebugWindow = false, g_bCurGamePathValid = false, g_bShowConfigWindow = true, g_bShowLociWindow = false, g_bShowCampaignWindow = false, g_bShowMapsWindow = false;
 inline fs::path				g_GamePath;
 inline std::atomic<int>		g_bitsAsyncStatus = Async_e::UNKNOWN;
 inline std::string			g_szInputGamePath;
+inline Maps_t				g_Maps;
 
 
 namespace BotProfileMgr
@@ -1466,7 +1636,7 @@ namespace MissionPack
 
 		for (auto i = Difficulty_e::EASY; i < Difficulty_e::_LAST; ++i)
 		{
-			if (CareerGames[i].m_Maps.empty())
+			if (CareerGames[i].m_Loci.empty())
 			{
 				std::cout << "Empty difficulty " << std::quoted(g_rgszDifficultyNames[(size_t)i]) << " will not be save.\n";
 				continue;
@@ -1480,6 +1650,37 @@ namespace MissionPack
 		}
 
 		BotProfileMgr::Save(rgFiles[FILE_BOT_PROFILE]);
+	}
+};
+
+namespace Maps	// This is the game map instead of career quest 'Locus_t'!
+{
+	void Load(void)
+	{
+		g_Maps.clear();
+
+		for (const auto& Directory : HalfLifeFileStructure::m_Directories)
+		{
+			if (Directory.string().find("valve") != std::string::npos)	// Skip all HL maps. They shouldn't appears in CZ.
+				continue;
+
+			fs::path hMapsFolder = Directory.c_str() + L"\\maps"s;
+			if (!fs::exists(hMapsFolder))
+				continue;
+
+			for (const auto& File : fs::directory_iterator(hMapsFolder))
+			{
+				std::string szFile = File.path().filename().string();
+				if (!stristr(szFile.c_str(), ".bsp"))
+					continue;
+
+				szFile.erase(szFile.find(".bsp"));	// Remove this part. Out Locus_t accesses g_Maps without ext name.
+				if (g_Maps.find(szFile) != g_Maps.end())	// Already added by other mod.
+					continue;
+
+				g_Maps[szFile].Initialize(File.path());
+			}
+		}
 	}
 };
 
@@ -1536,7 +1737,8 @@ void MainMenuBar(void)
 			ImGui::MenuItem("Config", "", &g_bShowConfigWindow);
 			ImGui::Separator();
 			ImGui::MenuItem("Campaign", "F1", &g_bShowCampaignWindow, !(g_bitsAsyncStatus & Async_e::UPDATING_MISSION_PACK_INFO));
-			ImGui::MenuItem("Maps", "F2", &g_bShowMapsWindow, !(g_bitsAsyncStatus & Async_e::UPDATING_MISSION_PACK_INFO));
+			ImGui::MenuItem("Loci", "F2", &g_bShowLociWindow, !(g_bitsAsyncStatus & Async_e::UPDATING_MISSION_PACK_INFO));
+			ImGui::MenuItem("Maps", "F3", &g_bShowMapsWindow, !(g_bitsAsyncStatus & Async_e::UPDATING_MAPS_INFO));	// #TODO shotcut does not implement yet.
 			ImGui::EndMenu();
 		}
 
@@ -1578,6 +1780,9 @@ void ConfigWindow(void)
 		if (g_bCurGamePathValid)
 		{
 			g_GamePath = g_szInputGamePath;
+			HalfLifeFileStructure::Update();
+
+			KnownMods.clear();
 
 			// Add official pack first.
 			MissionPack::CompileFileListOfTurtleRockCounterTerrorist(
@@ -1593,6 +1798,20 @@ void ConfigWindow(void)
 				if (hEntry.is_directory() && fs::exists(hEntry.path().c_str() + L"\\Overview.vdf"s) && hEntry.path().filename().c_str() != L"TurtleRockCounterTerrorist"s)
 					MissionPack::CompileFileList(KnownMods[hEntry.path()], hEntry.path());
 			}
+
+			std::thread t(
+				[](void)
+				{
+					if (g_bitsAsyncStatus & Async_e::UPDATING_MAPS_INFO)
+						std::this_thread::sleep_for(2s);	// #UNTESTED_BUT_SHOULD_WORK
+
+					g_bitsAsyncStatus |= Async_e::UPDATING_MAPS_INFO;
+					Maps::Load();	// This has to happen after all potential hlmod folders were enlisted.
+					g_bitsAsyncStatus &= ~Async_e::UPDATING_MAPS_INFO;
+
+				}
+			);
+			t.detach();
 		}
 
 		//g_bitsAsyncStatus |= Async_e::REQ_UPDATE_GAME_INFO;
@@ -1884,12 +2103,12 @@ void CampaignWindow(void)
 	ImGui::End();
 }
 
-void MapsWindow(void)
+void LocusWindow(void)
 {
-	if (g_bitsAsyncStatus & Async_e::UPDATING_MISSION_PACK_INFO || !g_bShowMapsWindow)
+	if (g_bitsAsyncStatus & (Async_e::UPDATING_MISSION_PACK_INFO | Async_e::UPDATING_MAPS_INFO) || !g_bShowLociWindow)	// The drawing is using map thumbnail.
 		return;
 
-	if (ImGui::Begin("Maps", &g_bShowMapsWindow))
+	if (ImGui::Begin("Loci", &g_bShowLociWindow))
 	{
 		constexpr ImGuiTableFlags bitsTableFlags = ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersV | ImGuiTableFlags_Hideable | ImGuiTableFlags_NoBordersInBody;
 		const auto vecSize = ImVec2(128 * 3 + 48, ImGui::GetTextLineHeightWithSpacing() * 3 + 128 * 3);
@@ -1897,7 +2116,7 @@ void MapsWindow(void)
 
 		ImGui::SetWindowSize(vecWindowSize);
 
-		if (ImGui::BeginTabBar("TabBar: Maps", ImGuiTabBarFlags_None))
+		if (ImGui::BeginTabBar("TabBar: Loci", ImGuiTabBarFlags_None))
 		{
 			for (auto i = Difficulty_e::EASY; i < Difficulty_e::_LAST; ++i)
 			{
@@ -1910,7 +2129,8 @@ void MapsWindow(void)
 				auto& CareerGame = MissionPack::CareerGames[i];
 				auto& szCurDifficulty = g_rgszDifficultyNames[(size_t)i];
 
-				if (ImGui::BeginTable("Table: Maps", 3, bitsTableFlags, vecSize))
+				// Table of all locations.
+				if (ImGui::BeginTable("Table: Loci", 3, bitsTableFlags, vecSize))
 				{
 					static bool bTableInit[(size_t)Difficulty_e::_LAST] = { false, false, false, false };
 					if (!bTableInit[(size_t)i])	// What the fuck, imgui?
@@ -1923,10 +2143,9 @@ void MapsWindow(void)
 						ImGui::TableHeadersRow();
 					}
 
-					//for (auto& Map : CareerGame.m_Maps)
-					for (auto itMap = CareerGame.m_Maps.begin(); itMap != CareerGame.m_Maps.end(); itMap++)
+					for (auto itLocus = CareerGame.m_Loci.begin(); itLocus != CareerGame.m_Loci.end(); itLocus++)
 					{
-						auto& Map = *itMap;
+						auto& Locus = *itLocus;
 						static int iColumnCount[(size_t)Difficulty_e::_LAST] = { 0, 0, 0 };
 
 						if (iColumnCount[(size_t)i] >= 3)
@@ -1936,35 +2155,36 @@ void MapsWindow(void)
 						}
 
 						ImGui::TableSetColumnIndex(iColumnCount[(size_t)i]);
-						ImGui::Text(Map.m_szMapName.c_str());
+						ImGui::Text(Locus.m_szMap.c_str());
 
-						static Map_t MapCopy{};	// Make a copy if we needs to enter editor.
-						if (ImGui::ImageButton((void*)(intptr_t)Map.m_Thumbnail.m_iTexId, Map.m_Thumbnail.Size()))
+						static Locus_t LocusCopy{};	// Make a copy if we needs to enter editor.
+						if (ImGui::ImageButton((void*)(intptr_t)g_Maps[Locus.m_szMap].m_Thumbnail.m_iTexId, g_Maps[Locus.m_szMap].m_Thumbnail.Size()))
 						{
-							ImGui::OpenPopup(UTIL_VarArgs("%s##%s", Map.m_szMapName.c_str(), szCurDifficulty));
-							MapCopy = Map;	// Make a copy only once. Or our changes will be kept after 1 frame.
+							ImGui::OpenPopup(UTIL_VarArgs("%s##%s", Locus.m_szMap.c_str(), szCurDifficulty));
+							LocusCopy = Locus;	// Make a copy only once. Or our changes will be kept after 1 frame.
 						}
 
 						// Our buttons are both drag sources and drag targets here!
 						if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
 						{
 							// Set payload to carry the index of our item (could be anything)
-							ImGui::SetDragDropPayload("MapIterator", &itMap, sizeof(itMap));
+							ImGui::SetDragDropPayload("LocusIterator", &itLocus, sizeof(itLocus));
 
 							// Preview popup.
-							ImGui::Image((void*)(intptr_t)Map.m_Thumbnail.m_iTexId, Map.m_Thumbnail.Size());
+							ImGui::Text(Locus.m_szMap.c_str());
+							ImGui::Image((void*)(intptr_t)g_Maps[Locus.m_szMap].m_Thumbnail.m_iTexId, g_Maps[Locus.m_szMap].m_Thumbnail.Size());
 
 							ImGui::EndDragDropSource();
 						}
 
 						if (ImGui::BeginDragDropTarget())
 						{
-							if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload("MapIterator"))
+							if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload("LocusIterator"))
 							{
-								IM_ASSERT(Payload->DataSize == sizeof(decltype(itMap)));
+								IM_ASSERT(Payload->DataSize == sizeof(decltype(itLocus)));
 
-								auto itDraggedMap = *(decltype(itMap)*)Payload->Data;
-								std::swap(*itMap, *itDraggedMap);
+								auto itDraggedLocus = *(decltype(itLocus)*)Payload->Data;
+								std::swap(*itLocus, *itDraggedLocus);
 							}
 
 							ImGui::EndDragDropTarget();
@@ -1973,17 +2193,17 @@ void MapsWindow(void)
 						// Always center this window when appearing
 						ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 
-						// Map task editor.
-						if (ImGui::BeginPopupModal(UTIL_VarArgs("%s##%s", Map.m_szMapName.c_str(), szCurDifficulty), nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+						// Location task editor.
+						if (ImGui::BeginPopupModal(UTIL_VarArgs("%s##%s", Locus.m_szMap.c_str(), szCurDifficulty), nullptr, ImGuiWindowFlags_AlwaysAutoResize))
 						{
 							// List all potential teammates in the current difficulty.
 							// Why? Because they can't be assign as your enemy at the same time.
 							Names_t& BotTeammates = MissionPack::CareerGames[i].m_rgszCharacters;
 
 							// Title picture.
-							ImGui::Image((void*)(intptr_t)MapCopy.m_WiderPreview.m_iTexId, MapCopy.m_WiderPreview.Size());
+							ImGui::Image((void*)(intptr_t)g_Maps[Locus.m_szMap].m_WiderPreview.m_iTexId, g_Maps[Locus.m_szMap].m_WiderPreview.Size());
 
-							if (ImGui::CollapsingHeader(UTIL_VarArgs("%d Enem%s selected###EnemySelection", MapCopy.m_rgszBots.size(), MapCopy.m_rgszBots.size() < 2 ? "y" : "ies")) &&
+							if (ImGui::CollapsingHeader(UTIL_VarArgs("%d Enem%s selected###EnemySelection", LocusCopy.m_rgszBots.size(), LocusCopy.m_rgszBots.size() < 2 ? "y" : "ies")) &&
 								ImGui::BeginListBox("##Enemys_ListBox", ImVec2(-FLT_MIN, 7 * ImGui::GetTextLineHeightWithSpacing())))
 							{
 								for (const auto& Character : g_BotProfiles)
@@ -1998,38 +2218,38 @@ void MapsWindow(void)
 										continue;	// Skip drawing if our candidate is our potential teammate.
 									}
 
-									auto it = std::find_if(MapCopy.m_rgszBots.begin(), MapCopy.m_rgszBots.end(),
+									auto it = std::find_if(LocusCopy.m_rgszBots.begin(), LocusCopy.m_rgszBots.end(),
 										[&Character](const Name_t& szOther)
 										{
 											return szOther == Character.m_szName;
 										}
 									);
 
-									bool bEnrolled = it != MapCopy.m_rgszBots.end();
+									bool bEnrolled = it != LocusCopy.m_rgszBots.end();
 
 									if (ImGui::Selectable(Character.m_szName.c_str(), bEnrolled))
 									{
 										if (bEnrolled)	// Select enrolled character -> rule them out.
-											MapCopy.m_rgszBots.erase(it);
+											LocusCopy.m_rgszBots.erase(it);
 										else
-											MapCopy.m_rgszBots.emplace_back(Character.m_szName);
+											LocusCopy.m_rgszBots.emplace_back(Character.m_szName);
 									}
 								}
 
 								ImGui::EndListBox();
 							}
 
-							ImGui::InputInt("Min Enemies", &MapCopy.m_iMinEnemies, 1, 5, ImGuiInputTextFlags_CharsDecimal);
-							ImGui::InputInt("Threshold", &MapCopy.m_iThreshold, 1, 5, ImGuiInputTextFlags_CharsDecimal);
-							ImGui::Checkbox("Friendly Fire", &MapCopy.m_bFriendlyFire);
-							ImGui::InputText("Console Command(s)", &MapCopy.m_szConsoleCommands);
+							ImGui::InputInt("Min Enemies", &LocusCopy.m_iMinEnemies, 1, 5, ImGuiInputTextFlags_CharsDecimal);
+							ImGui::InputInt("Threshold", &LocusCopy.m_iThreshold, 1, 5, ImGuiInputTextFlags_CharsDecimal);
+							ImGui::Checkbox("Friendly Fire", &LocusCopy.m_bFriendlyFire);
+							ImGui::InputText("Console Command(s)", &LocusCopy.m_szConsoleCommands);
 
 							// Actual tasks.
 							if (ImGui::CollapsingHeader("Task(s)", ImGuiTreeNodeFlags_DefaultOpen))
 							{
 								int iIdentifierIndex = 0;
-								//for (auto& Task : MapCopy.m_Tasks)
-								for (auto itTask = MapCopy.m_Tasks.begin(); itTask != MapCopy.m_Tasks.end(); /* Do nothing */)
+								//for (auto& Task : LocusCopy.m_Tasks)
+								for (auto itTask = LocusCopy.m_Tasks.begin(); itTask != LocusCopy.m_Tasks.end(); /* Do nothing */)
 								{
 									Task_t& Task = *itTask;
 
@@ -2066,12 +2286,12 @@ void MapsWindow(void)
 									if (ImGui::BeginPopupContextItem())
 									{
 										if (ImGui::Selectable("Add task"))
-											MapCopy.m_Tasks.push_back(Task_t{});
+											LocusCopy.m_Tasks.push_back(Task_t{});
 
 										bool bRemoved = false;
-										if (MapCopy.m_Tasks.size() > 1 && ImGui::Selectable("Remove this"))	// Must have at least one task.
+										if (LocusCopy.m_Tasks.size() > 1 && ImGui::Selectable("Remove this"))	// Must have at least one task.
 										{
-											itTask = MapCopy.m_Tasks.erase(itTask);
+											itTask = LocusCopy.m_Tasks.erase(itTask);
 											bRemoved = true;
 										}
 
@@ -2087,7 +2307,7 @@ void MapsWindow(void)
 
 							if (ImGui::Button("OK", ImVec2(120, 0)))
 							{
-								Map = std::move(MapCopy);
+								Locus = std::move(LocusCopy);
 								ImGui::CloseCurrentPopup();
 							}
 
@@ -2107,6 +2327,72 @@ void MapsWindow(void)
 			}
 
 			ImGui::EndTabBar();
+		}
+	}
+
+	ImGui::End();
+}
+
+void MapsWindow(void)
+{
+	static ImGuiTextFilter Filter;
+
+	if (g_bitsAsyncStatus & Async_e::UPDATING_MAPS_INFO || !g_bShowMapsWindow)
+		return;
+
+	if (ImGui::Begin("Maps## of independent window", &g_bShowMapsWindow))
+	{
+		ImGui::SetWindowSize(ImVec2(240, 480));
+
+		Filter.Draw("Search");
+
+		for (const auto& [szName, Map] : g_Maps)
+		{
+			if (!Filter.PassFilter(szName.c_str()))
+				continue;
+
+			ImGui::Selectable(szName.c_str());
+
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::BeginTooltip();
+
+				ImGui::TextWrapped(Map.m_Path.string().c_str());
+
+				if (Map.m_bThumbnailExists)
+				{
+					ImGui::Image((void*)(intptr_t)Map.m_Thumbnail.m_iTexId, Map.m_Thumbnail.Size());
+					ImGui::SameLine();
+				}
+				if (Map.m_bWiderPreviewExists)
+				{
+					ImGui::Image((void*)(intptr_t)Map.m_WiderPreview.m_iTexId, Map.m_WiderPreview.Size());
+				}
+
+				ImGui::Bullet(); ImGui::SameLine();
+				ImGui::TextColored(Map.m_bBriefFileExists ? IMGUI_GREEN : IMGUI_YELLOW, "Brief intro document %s.", Map.m_bBriefFileExists ? "found" : "no found");
+
+				ImGui::Bullet(); ImGui::SameLine();
+				ImGui::TextColored(Map.m_bDetailFileExists ? IMGUI_GREEN : IMGUI_YELLOW, "HD texture definition %s.", Map.m_bDetailFileExists ? "found" : "no found");
+
+				ImGui::Bullet(); ImGui::SameLine();
+				ImGui::TextColored(Map.m_bNavFileExists ? IMGUI_GREEN : IMGUI_YELLOW, "BOT navigation file %s.", Map.m_bDetailFileExists ? "found" : "no found");
+
+				ImGui::Bullet(); ImGui::SameLine();
+				ImGui::TextColored(Map.m_bOverviewFileExists ? IMGUI_GREEN : IMGUI_YELLOW, "Overview-related files %s.", Map.m_bDetailFileExists ? "found" : "no found");
+
+				ImGui::TextWrapped("\nRequired resources for this map:");
+
+				for (const auto& Res : Map.m_rgszResources)
+				{
+					bool b = HalfLifeFileStructure::Exists(Res);
+
+					ImGui::Bullet(); ImGui::SameLine();
+					ImGui::TextColored(b ? IMGUI_GREEN : IMGUI_RED, Res.c_str());
+				}
+
+				ImGui::EndTooltip();
+			}
 		}
 	}
 
@@ -2195,12 +2481,13 @@ int main(int argc, char** argv)
 		if (ImGui::IsKeyPressed(0x122))
 			g_bShowCampaignWindow = !g_bShowCampaignWindow;
 		if (ImGui::IsKeyPressed(0x123))
-			g_bShowMapsWindow = !g_bShowMapsWindow;
+			g_bShowLociWindow = !g_bShowLociWindow;
 #pragma endregion Key detection
 
 		MainMenuBar();
 		ConfigWindow();
 		CampaignWindow();
+		LocusWindow();
 		MapsWindow();
 
 		// Rendering

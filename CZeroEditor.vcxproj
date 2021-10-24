@@ -159,6 +159,7 @@
     <ClCompile Include="..\Hydrogenium\UtlFileSystem.ixx" />
     <ClCompile Include="..\Hydrogenium\UtlFunction.ixx" />
     <ClCompile Include="..\Hydrogenium\UtlString.ixx" />
+    <ClCompile Include="BspParser.cpp" />
     <ClCompile Include="CZeroEditor.cpp" />
     <ClCompile Include="imgui\backends\imgui_impl_glfw.cpp" />
     <ClCompile Include="imgui\backends\imgui_impl_opengl3.cpp" />

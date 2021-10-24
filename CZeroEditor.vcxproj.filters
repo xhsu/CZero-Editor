@@ -43,6 +43,7 @@
       <Filter>Hydrogenium</Filter>
     </ClCompile>
     <ClCompile Include="UtlImage.ixx" />
+    <ClCompile Include="BspParser.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="ImGui">

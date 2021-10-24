@@ -34,4 +34,5 @@
 **/Debug
 **/Release
 .vs
+.va
 imgui.ini

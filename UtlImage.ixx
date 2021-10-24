@@ -36,7 +36,7 @@ bool UTIL_LoadTextureFromFile(const char* filename, GLuint* piTextureIndex, int*
 	// Load from file
 	unsigned char* pBuffer = stbi_load(filename, piWidth, piHeight, NULL, 4);	// #MEM_ALLOC
 
-	if (pBuffer == nullptr)
+	if (!pBuffer)
 		return false;
 
 	// Create a OpenGL texture identifier
