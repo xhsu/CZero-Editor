@@ -410,6 +410,34 @@ struct Task_t
 
 struct Thumbnail_t : public Image_t
 {
+	constexpr Thumbnail_t(void) {}
+	Thumbnail_t(Thumbnail_t&& rhs) noexcept
+	{
+		m_iTexId = rhs.m_iTexId;
+		m_iWidth = rhs.m_iWidth;
+		m_iHeight = rhs.m_iHeight;
+	}
+	Thumbnail_t& operator=(Thumbnail_t&& rhs) noexcept
+	{
+		m_iTexId = rhs.m_iTexId;
+		m_iWidth = rhs.m_iWidth;
+		m_iHeight = rhs.m_iHeight;
+		return *this;
+	}
+	Thumbnail_t(const Thumbnail_t& rhs) noexcept
+	{
+		m_iTexId = rhs.m_iTexId;
+		m_iWidth = rhs.m_iWidth;
+		m_iHeight = rhs.m_iHeight;
+	}
+	Thumbnail_t& operator=(const Thumbnail_t& rhs) noexcept
+	{
+		m_iTexId = rhs.m_iTexId;
+		m_iWidth = rhs.m_iWidth;
+		m_iHeight = rhs.m_iHeight;
+		return *this;
+	}
+
 	inline ImVec2	Size() const noexcept { return ImVec2((float)m_iWidth, (float)m_iHeight); }
 };
 
@@ -425,8 +453,8 @@ struct Map_t
 		m_Tasks(rhs.m_Tasks),
 		m_bFriendlyFire(rhs.m_bFriendlyFire),
 		m_szConsoleCommands(rhs.m_szConsoleCommands),
-		m_Thumbnail(m_Thumbnail),
-		m_WiderPreview(m_WiderPreview)
+		m_Thumbnail(rhs.m_Thumbnail),
+		m_WiderPreview(rhs.m_WiderPreview)
 	{
 	}
 	Map_t& operator=(const Map_t& rhs) noexcept
@@ -438,8 +466,8 @@ struct Map_t
 		m_Tasks = rhs.m_Tasks;
 		m_bFriendlyFire = rhs.m_bFriendlyFire;
 		m_szConsoleCommands = rhs.m_szConsoleCommands;
-		memcpy(&m_Thumbnail, &rhs.m_Thumbnail, sizeof(m_Thumbnail));
-		memcpy(&m_WiderPreview, &rhs.m_WiderPreview, sizeof(m_WiderPreview));
+		m_Thumbnail = rhs.m_Thumbnail;
+		m_WiderPreview = rhs.m_WiderPreview;	// #FORGET_HOW_TO_TEST_THE_CHANGE	orignally should be a memcpy() call.
 		return *this;
 	}
 	Map_t(Map_t&& rhs) noexcept :
@@ -450,8 +478,8 @@ struct Map_t
 		m_Tasks(std::move(rhs.m_Tasks)),
 		m_bFriendlyFire(rhs.m_bFriendlyFire),
 		m_szConsoleCommands(std::move(rhs.m_szConsoleCommands)),
-		m_Thumbnail(std::move(m_Thumbnail)),
-		m_WiderPreview(std::move(m_WiderPreview))
+		m_Thumbnail(std::move(rhs.m_Thumbnail)),
+		m_WiderPreview(std::move(rhs.m_WiderPreview))
 	{
 	}
 	Map_t& operator=(Map_t&& rhs) noexcept
@@ -463,8 +491,10 @@ struct Map_t
 		m_Tasks = std::move(rhs.m_Tasks);
 		m_bFriendlyFire = rhs.m_bFriendlyFire;
 		m_szConsoleCommands = std::move(rhs.m_szConsoleCommands);
-		m_Thumbnail = std::move(m_Thumbnail);
-		m_WiderPreview = std::move(m_WiderPreview);
+		//m_Thumbnail = std::move(m_Thumbnail);
+		//m_WiderPreview = std::move(m_WiderPreview);
+		memcpy(&m_Thumbnail, &rhs.m_Thumbnail, sizeof(m_Thumbnail));
+		memcpy(&m_WiderPreview, &rhs.m_WiderPreview, sizeof(m_WiderPreview));
 		return *this;
 	}
 	virtual ~Map_t() noexcept {}
@@ -1557,10 +1587,11 @@ void ConfigWindow(void)
 
 			for (const auto& hEntry : fs::directory_iterator(g_szInputGamePath + "\\MissionPacks\\"))
 			{
+				if (KnownMods.contains(hEntry))
+					continue;
+
 				if (hEntry.is_directory() && fs::exists(hEntry.path().c_str() + L"\\Overview.vdf"s) && hEntry.path().filename().c_str() != L"TurtleRockCounterTerrorist"s)
-				{
 					MissionPack::CompileFileList(KnownMods[hEntry.path()], hEntry.path());
-				}
 			}
 		}
 
@@ -1881,7 +1912,7 @@ void MapsWindow(void)
 
 				if (ImGui::BeginTable("Table: Maps", 3, bitsTableFlags, vecSize))
 				{
-					static bool bTableInit[(size_t)Difficulty_e::_LAST] = { false,false,false };
+					static bool bTableInit[(size_t)Difficulty_e::_LAST] = { false, false, false, false };
 					if (!bTableInit[(size_t)i])	// What the fuck, imgui?
 					{
 						bTableInit[(size_t)i] = true;
@@ -1892,8 +1923,10 @@ void MapsWindow(void)
 						ImGui::TableHeadersRow();
 					}
 
-					for (auto& Map : CareerGame.m_Maps)
+					//for (auto& Map : CareerGame.m_Maps)
+					for (auto itMap = CareerGame.m_Maps.begin(); itMap != CareerGame.m_Maps.end(); itMap++)
 					{
+						auto& Map = *itMap;
 						static int iColumnCount[(size_t)Difficulty_e::_LAST] = { 0, 0, 0 };
 
 						if (iColumnCount[(size_t)i] >= 3)
@@ -1910,6 +1943,31 @@ void MapsWindow(void)
 						{
 							ImGui::OpenPopup(UTIL_VarArgs("%s##%s", Map.m_szMapName.c_str(), szCurDifficulty));
 							MapCopy = Map;	// Make a copy only once. Or our changes will be kept after 1 frame.
+						}
+
+						// Our buttons are both drag sources and drag targets here!
+						if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+						{
+							// Set payload to carry the index of our item (could be anything)
+							ImGui::SetDragDropPayload("MapIterator", &itMap, sizeof(itMap));
+
+							// Preview popup.
+							ImGui::Image((void*)(intptr_t)Map.m_Thumbnail.m_iTexId, Map.m_Thumbnail.Size());
+
+							ImGui::EndDragDropSource();
+						}
+
+						if (ImGui::BeginDragDropTarget())
+						{
+							if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload("MapIterator"))
+							{
+								IM_ASSERT(Payload->DataSize == sizeof(decltype(itMap)));
+
+								auto itDraggedMap = *(decltype(itMap)*)Payload->Data;
+								std::swap(*itMap, *itDraggedMap);
+							}
+
+							ImGui::EndDragDropTarget();
 						}
 
 						// Always center this window when appearing
@@ -1969,12 +2027,11 @@ void MapsWindow(void)
 							// Actual tasks.
 							if (ImGui::CollapsingHeader("Task(s)", ImGuiTreeNodeFlags_DefaultOpen))
 							{
-
 								int iIdentifierIndex = 0;
 								//for (auto& Task : MapCopy.m_Tasks)
-								for (auto iter = MapCopy.m_Tasks.begin(); iter != MapCopy.m_Tasks.end(); iter++)
+								for (auto itTask = MapCopy.m_Tasks.begin(); itTask != MapCopy.m_Tasks.end(); /* Do nothing */)
 								{
-									Task_t& Task = *iter;
+									Task_t& Task = *itTask;
 
 									if (ImGui::TreeNode(UTIL_VarArgs("%s###task%d", Task.ToString().c_str(), iIdentifierIndex)))
 									{
@@ -2011,16 +2068,20 @@ void MapsWindow(void)
 										if (ImGui::Selectable("Add task"))
 											MapCopy.m_Tasks.push_back(Task_t{});
 
+										bool bRemoved = false;
 										if (MapCopy.m_Tasks.size() > 1 && ImGui::Selectable("Remove this"))	// Must have at least one task.
 										{
-											iter = MapCopy.m_Tasks.erase(iter);
-
-											if (iter != MapCopy.m_Tasks.begin())
-												iter--;	// For iter++ in the for loop.
+											itTask = MapCopy.m_Tasks.erase(itTask);
+											bRemoved = true;
 										}
 
 										ImGui::EndPopup();
+
+										if (bRemoved)
+											continue;	// Skip the it++;
 									}
+
+									itTask++;
 								}
 							}
 
@@ -2120,12 +2181,14 @@ int main(int argc, char** argv)
 		ImGui::NewFrame();
 
 #pragma region Debug Window
+#ifdef _DEBUG
 		// 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
 		if (ImGui::IsKeyPressed(0x60))
 			g_bShowDebugWindow = !g_bShowDebugWindow;
 
 		if (g_bShowDebugWindow)
 			ImGui::ShowDemoWindow(&g_bShowDebugWindow);
+#endif
 #pragma endregion Debug Window
 
 #pragma region Key detection
