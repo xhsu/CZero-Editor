@@ -19,9 +19,9 @@
 
 // ImGUI
 #include "imgui.h"
-#include "misc/cpp/imgui_stdlib.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#include "misc/cpp/imgui_stdlib.h"
 
 // OpenGL
 #include <GLFW/glfw3.h> // Will drag system OpenGL headers
@@ -53,7 +53,7 @@ extern std::list<std::string> BSP_CompileResourceList(const char* pszBspPath);
 
 
 
-#define IMGUI_GREEN		ImVec4(0, 153.0f / 255.0f, 0, 1)
+#define IMGUI_GREEN		ImVec4(102.0f / 255.0f, 204.0f / 255.0f, 102.0f / 255.0f, 1)
 #define IMGUI_YELLOW	ImVec4(1, 204.0f / 255.0f, 102.0f / 255.0f, 1)
 #define IMGUI_RED		ImVec4(204.0f / 255.0f, 0, 0, 1)
 
@@ -68,27 +68,28 @@ extern std::list<std::string> BSP_CompileResourceList(const char* pszBspPath);
 #pragma region Objects
 // Dummy
 enum class Difficulty_e : unsigned __int8;
-enum class Weapon_e : unsigned __int8;
 struct BotProfile_t;
 struct CareerGame_t;
 struct Locus_t;
-struct Task_t;
 struct Map_t;
+struct Task_t;
+struct Thumbnail_t;
 
 using BYTE = unsigned __int8;
 using BotProfiles_t = std::list<BotProfile_t>;
 using CareerGames_t = std::unordered_map<Difficulty_e, CareerGame_t>;
 using ConsoleCmd_t = std::string;
 using CostAvailability_t = std::array<int, 5>;
+using Directories_t = std::list<fs::path>;
 using KeyValueSet_t = std::unordered_map<Difficulty_e, NewKeyValues*>;
 using Loci_t = std::list<Locus_t>;
+using Maps_t = std::unordered_map<std::string, Map_t>;
 using Name_t = std::string;
 using Names_t = std::list<Name_t>;
-using Tasks_t = std::list<Task_t>;
-using Weapons_t = std::vector<Weapon_e>;
 using Resources_t = std::list<std::string>;
-using Directories_t = std::list<fs::path>;
-using Maps_t = std::unordered_map<Name_t, Map_t>;
+using SkinThumbnails_t = std::unordered_map<std::string, Thumbnail_t>;
+using Tasks_t = std::list<Task_t>;
+using Weapons_t = std::vector<std::string>;
 
 const char* g_rgszTaskNames[] =
 {
@@ -115,40 +116,146 @@ const char* g_rgszTaskNames[] =
 
 const char* g_rgszWeaponNames[] =
 {
-	"scout",
-	"xm1014",
-	"mac10",
-	"aug",
-	"ump45",
-	"sg550",
-	"galil",
-	"famas",
-	"awp",
-	"mp5",
-	"m249",
-	"m3",
-	"m4a1",
-	"tmp",
-	"sg552",
-	"ak47",
-	"p90",
-	"shield",
-	"weapon",
-	"knife",
-	"grenade",
-	"hegren",
 	"pistol",
-	"SMG",
-	"machinegun",
-	"shotgun",
-	"rifle",
-	"sniper",
+	"glock",
+	"usp",
+	"p228",
+	"deagle",
 	"fn57",
 	"elites",
+
+	"shotgun",
+	"m3",
+	"xm1014",
+
+	"SMG",
+	"tmp",
+	"mac10",
+	"mp5",
+	"ump45",
+	"p90",
+
+	"rifle",
+	"galil",
+	"ak47",
+	"famas",
+	"m4a1",
+	"aug",
+	"sg552",
+
+	"sniper",
+	"scout",
+	"sg550",
+	"awp",
+	"g3sg1",
+
+	"machinegun",
+	"m249",
+	
+	"knife",
+	"shield",
+	"grenade",	// singular
+	"hegren",	// plural
+	"flashbang",
+	"smokegrenade",
+};
+
+constexpr std::array<bool, _countof(g_rgszWeaponNames)> g_rgbIsBuyCommand =
+{
+	false,	// pistol
+	true,
+	true,
+	true,
+	true,
+	true,
+	true,
+
+	false,	// shotgun
+	true,
+	true,
+
+	false,	// smg
+	true,
+	true,
+	true,
+	true,
+	true,
+
+	false,	// rifle
+	true,
+	true,
+	true,
+	true,
+	true,
+	true,
+
+	false,	// sniper
+	true,
+	true,
+	true,
+	true,
+
+	false,
+	true,	// m249
+
+	false,	// knife
+	true,	// shield
+	false,	// grenade (singular)
+	true,	// hegren (plural)
+	true,	// FB
+	true,	// SG
+};
+
+constexpr std::array<bool, _countof(g_rgszWeaponNames)> g_rgbIsTaskWeapon =
+{
+	true,	// pistol
+	true,
+	true,
+	true,
+	true,
+	true,
+	true,
+
+	true,	// shotgun
+	true,
+	true,
+
+	true,	// smg
+	true,
+	true,
+	true,
+	true,
+	true,
+
+	true,	// rifle
+	true,
+	true,
+	true,
+	true,
+	true,
+	true,
+
+	true,	// sniper
+	true,
+	true,
+	true,
+	true,
+
+	true,
+	true,	// m249
+
+	true,	// knife
+	true,	// shield
+	true,	// grenade (singular)
+	true,	// hegren (plural)
+	false,	// FB
+	false,	// SG
 };
 
 const char* g_rgszDifficultyNames[] = { "EASY", "NORMAL", "HARD", "EXPERT" };
 const wchar_t* g_rgwcsDifficultyNames[] = { L"Easy", L"Normal", L"Hard", L"Expert" };
+const char* g_rgszCTSkinName[] = { nullptr, "urban", "gsg9", "sas", "gign", "spetsnaz", "ct_random" };
+const char* g_rgszTSkinName[] = { nullptr, "terror", "leet", "arctic", "guerilla", "militia", "t_random" };
 
 extern inline fs::path	g_GamePath;
 
@@ -177,42 +284,6 @@ enum class TaskType_e : BYTE
 	_LAST,
 };
 
-enum class Weapon_e : BYTE
-{
-	scout,
-	xm1014,
-	mac10,
-	aug,
-	ump45,
-	sg550,
-	galil,
-	famas,
-	awp,
-	mp5,
-	m249,
-	m3,
-	m4a1,
-	tmp,
-	sg552,
-	ak47,
-	p90,
-	shield,
-	weapon,
-	knife,
-	grenade,	// (text is singular)
-	hegren,		// (text is plural, but the behavior is the same)
-	pistol,
-	SMG,
-	machinegun,
-	shotgun,
-	rifle,
-	sniper,
-	fn57,
-	elites,
-
-	_LAST
-};
-
 enum Async_e : int
 {
 	UNKNOWN = 0,
@@ -239,6 +310,13 @@ enum class Difficulty_e : BYTE
 	EXPERT,
 
 	_LAST
+};
+
+enum Team_e
+{
+	TEAM_CT,
+	TEAM_T,
+	TEAM_ANY,
 };
 
 #pragma region ScopedEnumOperator
@@ -366,13 +444,19 @@ struct Task_t
 				m_bSurvive = true;
 			else if (szToken == "inarow"s)
 				m_bInARow = true;
-			else if (m_iWeapon == Weapon_e::_LAST)
+			else if (m_szWeapon.empty())
 			{
 				// Identify weapon should be use.
-				for (m_iWeapon = (Weapon_e)0; m_iWeapon < _countof(g_rgszWeaponNames); ++m_iWeapon)
+				for (int i = 0; i < _countof(g_rgszWeaponNames); i++)
 				{
-					if (!_stricmp(szToken.c_str(), g_rgszWeaponNames[(unsigned)m_iWeapon]))
+					if (!g_rgbIsTaskWeapon[i])
+						continue;
+
+					if (!_stricmp(szToken.c_str(), g_rgszWeaponNames[i]))
+					{
+						m_szWeapon = g_rgszWeaponNames[i];	// Invisible std::tolower()
 						break;
+					}
 				}
 			}
 		}
@@ -385,8 +469,8 @@ struct Task_t
 		if (m_iCount && (1 << m_iType) & Tasks::REQ_COUNT)
 			ret += std::to_string(m_iCount) + ' ';
 
-		if (m_iWeapon != Weapon_e::_LAST && (1 << m_iType) & Tasks::REQ_WEAPON)
-			ret += g_rgszWeaponNames[(unsigned)m_iWeapon] + " "s;
+		if (!m_szWeapon.empty() && (1 << m_iType) & Tasks::REQ_WEAPON)
+			ret += m_szWeapon + " "s;
 
 		if (m_bSurvive && (1 << m_iType) & Tasks::SURVIVE)
 			ret += "survive"s + ' ';
@@ -398,21 +482,29 @@ struct Task_t
 		return ret;
 	}
 
-	void SanityCheck(void) noexcept
+	// Modify and give reason for ill-formed.
+	const char* SanityCheck(void) noexcept
 	{
 		if (!((1 << m_iType) & Tasks::REQ_COUNT))
 			m_iCount = 0;
 		if (!((1 << m_iType) & Tasks::REQ_WEAPON))
-			m_iWeapon = Weapon_e::_LAST;
+			m_szWeapon = "";
 		if (!((1 << m_iType) & Tasks::SURVIVE))
 			m_bSurvive = false;
 		if (!((1 << m_iType) & Tasks::INAROW))
 			m_bInARow = false;
+
+		if ((1 << m_iType) & Tasks::REQ_COUNT && m_iCount < 1)
+			return "Count must greater than 0 for this task!";
+		if ((1 << m_iType) & Tasks::REQ_WEAPON && m_szWeapon.empty())
+			return "Weapon name must be provided for this task!";
+
+		return nullptr;
 	}
 
 	TaskType_e m_iType{ TaskType_e::kill };
 	int m_iCount{ 0 };
-	Weapon_e m_iWeapon{ Weapon_e::_LAST };
+	Name_t m_szWeapon{ "" };
 	bool m_bSurvive{ false };
 	bool m_bInARow{ false };
 };
@@ -611,6 +703,7 @@ struct Map_t
 	}
 
 	Name_t			m_szName{ "Error - no name of this .bsp file." };	// .bsp ext name not included.
+	Name_t			m_szSky{ "Error - no sky texture." };
 	Resources_t		m_rgszResources{};
 	Thumbnail_t		m_Thumbnail{};
 	Thumbnail_t		m_WiderPreview{};
@@ -881,6 +974,81 @@ namespace BotProfileMgr
 
 struct BotProfile_t
 {
+	BotProfile_t(void) noexcept {}
+	BotProfile_t(const BotProfile_t& rhs) noexcept :
+		m_szName(rhs.m_szName),
+		m_rgszWpnPreference(rhs.m_rgszWpnPreference),
+		m_bPrefersSilencer(rhs.m_bPrefersSilencer),
+		m_bExplicitlyNoneWpnPref(rhs.m_bExplicitlyNoneWpnPref),
+		m_flAttackDelay(rhs.m_flAttackDelay),
+		m_flReactionTime(rhs.m_flReactionTime),
+		m_bitsDifficulty(rhs.m_bitsDifficulty),
+		m_iAggression(rhs.m_iAggression),
+		m_iCost(rhs.m_iCost),
+		m_iSkill(rhs.m_iSkill),
+		m_iTeamwork(rhs.m_iTeamwork),
+		m_iVoicePitch(rhs.m_iVoicePitch),
+		m_rgszRefTemplates(rhs.m_rgszRefTemplates),
+		m_szSkin(rhs.m_szSkin),
+		m_szTeam(rhs.m_szTeam),
+		m_szVoiceBank(rhs.m_szVoiceBank) {}
+	BotProfile_t& operator=(const BotProfile_t& rhs) noexcept
+	{
+		m_szName = rhs.m_szName;
+		m_rgszWpnPreference = rhs.m_rgszWpnPreference;
+		m_bPrefersSilencer = rhs.m_bPrefersSilencer;
+		m_bExplicitlyNoneWpnPref = rhs.m_bExplicitlyNoneWpnPref;
+		m_flAttackDelay = rhs.m_flAttackDelay;
+		m_flReactionTime = rhs.m_flReactionTime;
+		m_bitsDifficulty = rhs.m_bitsDifficulty;
+		m_iAggression = rhs.m_iAggression;
+		m_iCost = rhs.m_iCost;
+		m_iSkill = rhs.m_iSkill;
+		m_iTeamwork = rhs.m_iTeamwork;
+		m_iVoicePitch = rhs.m_iVoicePitch;
+		m_rgszRefTemplates = rhs.m_rgszRefTemplates;
+		m_szSkin = rhs.m_szSkin;
+		m_szTeam = rhs.m_szTeam;
+		m_szVoiceBank = rhs.m_szVoiceBank;
+		return *this;
+	}
+	BotProfile_t(BotProfile_t&& rhs) noexcept :
+		m_szName(std::move(rhs.m_szName)),
+		m_rgszWpnPreference(std::move(rhs.m_rgszWpnPreference)),
+		m_bPrefersSilencer(rhs.m_bPrefersSilencer),
+		m_bExplicitlyNoneWpnPref(rhs.m_bExplicitlyNoneWpnPref),
+		m_flAttackDelay(rhs.m_flAttackDelay),
+		m_flReactionTime(rhs.m_flReactionTime),
+		m_bitsDifficulty(rhs.m_bitsDifficulty),
+		m_iAggression(rhs.m_iAggression),
+		m_iCost(rhs.m_iCost),
+		m_iSkill(rhs.m_iSkill),
+		m_iTeamwork(rhs.m_iTeamwork),
+		m_iVoicePitch(rhs.m_iVoicePitch),
+		m_rgszRefTemplates(std::move(rhs.m_rgszRefTemplates)),
+		m_szSkin(std::move(rhs.m_szSkin)),
+		m_szTeam(std::move(rhs.m_szTeam)),
+		m_szVoiceBank(std::move(rhs.m_szVoiceBank)) {}
+	BotProfile_t& operator=(BotProfile_t&& rhs) noexcept
+	{
+		m_szName = std::move(rhs.m_szName);
+		m_rgszWpnPreference = std::move(rhs.m_rgszWpnPreference);
+		m_bPrefersSilencer = rhs.m_bPrefersSilencer;
+		m_bExplicitlyNoneWpnPref = rhs.m_bExplicitlyNoneWpnPref;
+		m_flAttackDelay = rhs.m_flAttackDelay;
+		m_flReactionTime = rhs.m_flReactionTime;
+		m_bitsDifficulty = rhs.m_bitsDifficulty;
+		m_iAggression = rhs.m_iAggression;
+		m_iCost = rhs.m_iCost;
+		m_iSkill = rhs.m_iSkill;
+		m_iTeamwork = rhs.m_iTeamwork;
+		m_iVoicePitch = rhs.m_iVoicePitch;
+		m_rgszRefTemplates = std::move(rhs.m_rgszRefTemplates);
+		m_szSkin = std::move(rhs.m_szSkin);
+		m_szTeam = std::move(rhs.m_szTeam);
+		m_szVoiceBank = std::move(rhs.m_szVoiceBank);
+		return *this;
+	}
 	virtual ~BotProfile_t() {}
 
 	bool SaveAttrib(std::ofstream& hFile) const
@@ -889,20 +1057,20 @@ struct BotProfile_t
 			hFile << "\tWeaponPreference = none" << std::endl;
 		else
 		{
-			for (const auto& iWeapon : m_rgWeaponPreference)
+			for (const auto& szWeapon : m_rgszWpnPreference)
 			{
-				if (!m_ReferencedTemplates.empty())
+				if (!m_rgszRefTemplates.empty())
 				{
-					BotProfile_t& Ref = BotProfileMgr::m_Templates[m_ReferencedTemplates.back()];
+					BotProfile_t& Ref = BotProfileMgr::m_Templates[m_rgszRefTemplates.back()];	// #PENDING_ON_REVIEW this should never happen. If there is a weapon template, one should never customize his weapon preference.
 
-					for (const auto& iRefWpn : Ref.m_rgWeaponPreference)
+					for (const auto& szRefWpn : Ref.m_rgszWpnPreference)
 					{
-						if (iRefWpn == iWeapon)
+						if (szRefWpn == szWeapon)
 							goto LAB_SKIP_SAVING;
 					}
 				}
 
-				hFile << "\tWeaponPreference = " << g_rgszWeaponNames[(size_t)iWeapon] << std::endl;
+				hFile << "\tWeaponPreference = " << szWeapon << std::endl;
 
 			LAB_SKIP_SAVING:;
 			}
@@ -912,7 +1080,7 @@ struct BotProfile_t
 										hFile << "\t" #x " = " << m_i##x << std::endl
 #define SAVE_MEMBER_HELPER_FLT(x)	if (m_fl##x >= 0 && !IsMemberInherited<float>(offsetof(BotProfile_t, m_fl##x)))	\
 										hFile << "\t" #x " = " << m_fl##x << std::endl
-#define SAVE_MEMBER_HELPER_STR(x)	if (!m_sz##x.starts_with("Error - "s) && !IsMemberInherited<std::string>(offsetof(BotProfile_t, m_sz##x)))	\
+#define SAVE_MEMBER_HELPER_STR(x)	if (!m_sz##x.empty() && !m_sz##x.starts_with("Error - "s) && !IsMemberInherited<std::string>(offsetof(BotProfile_t, m_sz##x)))	\
 										hFile << "\t" #x " = " << m_sz##x << std::endl
 
 		SAVE_MEMBER_HELPER_FLT(AttackDelay);
@@ -967,7 +1135,7 @@ struct BotProfile_t
 		T* pMyValue = reinterpret_cast<T*>(size_t(this) + iOffset);
 		T* pRefValue = nullptr;
 
-		for (auto iter = m_ReferencedTemplates.rbegin(); iter != m_ReferencedTemplates.rend(); iter++)
+		for (auto iter = m_rgszRefTemplates.rbegin(); iter != m_rgszRefTemplates.rend(); iter++)
 		{
 			BotProfile_t* pRef = &BotProfileMgr::m_Templates[*iter];
 			pRefValue = reinterpret_cast<T*>(size_t(pRef) + iOffset);
@@ -997,7 +1165,7 @@ struct BotProfile_t
 		if (bTemplateFound)
 			return (*pMyValue == *pRefValue);	// If there is a valid template, skip m_Default. It must be overwritten.
 
-		for (const auto& Name : m_ReferencedTemplates)
+		for (const auto& Name : m_rgszRefTemplates)
 		{
 			BotProfile_t* pRef = &BotProfileMgr::m_Templates[Name];
 			T* pRefValue = reinterpret_cast<T*>(size_t(pRef) + iOffset);
@@ -1014,7 +1182,7 @@ struct BotProfile_t
 	void Reset(void)
 	{
 		m_szName = "Error - No name"s;
-		m_rgWeaponPreference.clear();
+		m_rgszWpnPreference.clear();
 		m_bPrefersSilencer = false;
 		m_bExplicitlyNoneWpnPref = false;
 		m_flAttackDelay = -1;
@@ -1025,14 +1193,61 @@ struct BotProfile_t
 		m_iSkill = -1;
 		m_iTeamwork = -1;
 		m_iVoicePitch = -1;
-		m_ReferencedTemplates.clear();
-		m_szSkin = "Error - No skin assigned"s;
-		m_szTeam = "Error - No team preference"s;
-		m_szVoiceBank = "Error - No voicebank assigned"s;
+		m_rgszRefTemplates.clear();
+		m_szSkin = "";
+		m_szTeam = "";
+		m_szVoiceBank = "";
+	}
+
+	// Different from Task_t::SanityCheck(), this one doesnot modify original value.
+	const char* SanityCheck(void) const noexcept
+	{
+		if (m_szName.empty())
+			return "Empty bot name.";
+		if (m_szName.find_first_of(" \t\n\v\f\r") != Name_t::npos)	// basic_string::find will try to match the entire param.
+			return "Name string contains space(s).";
+		if (m_flAttackDelay < 0)
+			return "Attack delay must be a non-negative value.";
+		if (m_flReactionTime < 0)
+			return "Reaction time must be a non-negative value.";
+		if (m_iAggression < 0 || m_iAggression > 100)
+			return "Aggression must be a value between 0 and 100.";
+		if (m_iCost < 1 || m_iCost > 5)
+			return "Cost of a teammate must be a value between 1 and 5.";
+		if (m_iSkill < 0 || m_iSkill > 100)
+			return "Skill must be a value between 0 and 100.";
+		if (m_iTeamwork < 0 || m_iTeamwork > 100)
+			return "Teamwork must be a value between 0 and 100.";
+		if (m_iVoicePitch < 0)
+			return "Voice pitch must be a value greater than 0.";
+		if (m_rgszRefTemplates.empty())
+			return "You must using at least one template for your character.";
+
+		for (const auto& szWpn : m_rgszWpnPreference)
+		{
+			bool bValidBuyCommand = false;
+
+			for (int i = 0; i < _countof(g_rgszWeaponNames); i++)
+			{
+				if (!g_rgbIsBuyCommand[i])
+					continue;
+
+				if (szWpn == g_rgszWeaponNames[i])
+				{
+					bValidBuyCommand = true;
+					break;
+				}
+			}
+
+			if (!bValidBuyCommand)
+				return "Invalid buy command found in WeaponPreference field!";
+		}
+
+		return nullptr;	// Nullptr is good news!
 	}
 
 	Name_t m_szName{ "Error - No name"s };	// Not in attrib
-	Weapons_t m_rgWeaponPreference{};
+	Weapons_t m_rgszWpnPreference{};
 	bool m_bPrefersSilencer{ false };	// Not editable.
 	bool m_bExplicitlyNoneWpnPref{ false };	// Share with WeaponPreference, no inheritance
 	float m_flAttackDelay{ -1 };
@@ -1043,20 +1258,20 @@ struct BotProfile_t
 	int m_iSkill{ -1 };
 	int m_iTeamwork{ -1 };
 	int m_iVoicePitch{ -1 };
-	std::list<std::string> m_ReferencedTemplates{};	// Not in attrib
-	std::string m_szSkin{ "Error - No skin assigned"s };
-	std::string m_szTeam{ "Error - No team preference"s };
-	std::string m_szVoiceBank{ "Error - No voicebank assigned"s };
+	std::list<std::string> m_rgszRefTemplates{};	// Not in attrib
+	std::string m_szSkin{ "" };
+	std::string m_szTeam{ "" };
+	std::string m_szVoiceBank{ "" };
 };
 
 
 inline BotProfiles_t&		g_BotProfiles = BotProfileMgr::m_Profiles;
 inline GLFWwindow*			g_hGLFWWindow = nullptr;
-inline bool					g_bShowDebugWindow = false, g_bCurGamePathValid = false, g_bShowConfigWindow = true, g_bShowLociWindow = false, g_bShowCampaignWindow = false, g_bShowMapsWindow = false;
+inline Maps_t				g_Maps;
+inline bool					g_bShowDebugWindow = false, g_bCurGamePathValid = false, g_bShowConfigWindow = true, g_bShowLociWindow = false, g_bShowCampaignWindow = false, g_bShowMapsWindow = false, g_bShowBotsWindow = true;
 inline fs::path				g_GamePath;
 inline std::atomic<int>		g_bitsAsyncStatus = Async_e::UNKNOWN;
 inline std::string			g_szInputGamePath;
-inline Maps_t				g_Maps;
 
 
 namespace BotProfileMgr
@@ -1064,6 +1279,7 @@ namespace BotProfileMgr
 	// Real Declration
 	inline BotProfiles_t m_Profiles{};
 	inline BotProfile_t m_Default{};
+	inline SkinThumbnails_t m_Thumbnails{};
 
 	// File headers.
 	inline const char m_szHeader[] =
@@ -1255,9 +1471,9 @@ namespace BotProfileMgr
 			// do inheritance in order of appearance
 			if (!bIsTemplate && !bIsDefault)
 			{
-				UTIL_Split(*iter, pProfile->m_ReferencedTemplates, "+"s);
+				UTIL_Split(*iter, pProfile->m_rgszRefTemplates, "+"s);
 
-				for (const auto& szInherit : pProfile->m_ReferencedTemplates)
+				for (const auto& szInherit : pProfile->m_rgszRefTemplates)
 				{
 					// Inherit code.
 					if (auto iter2 = m_Templates.find(szInherit); iter2 != m_Templates.end())
@@ -1267,8 +1483,8 @@ namespace BotProfileMgr
 						if (!Inherit.m_szName.starts_with("Error"))
 							pProfile->m_szName = Inherit.m_szName;
 
-						if (!Inherit.m_rgWeaponPreference.empty())
-							pProfile->m_rgWeaponPreference = Inherit.m_rgWeaponPreference;
+						if (!Inherit.m_rgszWpnPreference.empty())
+							pProfile->m_rgszWpnPreference = Inherit.m_rgszWpnPreference;
 
 						if (Inherit.m_flAttackDelay > 0)
 							pProfile->m_flAttackDelay = Inherit.m_flAttackDelay;
@@ -1381,16 +1597,31 @@ namespace BotProfileMgr
 				{
 					if (!_stricmp(iter->c_str(), "none"))
 					{
-						pProfile->m_rgWeaponPreference.clear();
+						pProfile->m_rgszWpnPreference.clear();
 						pProfile->m_bExplicitlyNoneWpnPref = true;
 						continue;
 					}
 
+					bool bWeaponNameParsed = false;
 					for (size_t i = 0; i < _countof(g_rgszWeaponNames); i++)
 					{
+						if (!g_rgbIsBuyCommand[i])	// Skip those non-buycommand text.
+							continue;
+
 						if (!_stricmp(iter->c_str(), g_rgszWeaponNames[i]))
-							pProfile->m_rgWeaponPreference.push_back((Weapon_e)i);
+						{
+							bWeaponNameParsed = true;
+							pProfile->m_rgszWpnPreference.emplace_back(g_rgszWeaponNames[i]);	// Invisible std::tolower().
+							pProfile->m_bExplicitlyNoneWpnPref = false;
+							break;
+						}
 					}
+
+					if (!bWeaponNameParsed)
+						std::cout << "Unknow weapon name " << std::quoted(*iter) << " met during parsing " << hPath << std::endl;
+
+					// #UNDONE_LONG_TERM Ideally when template weapon and its explictly prefered weapon confilx, one should pick its own prefered weapon. But this is not the case in original CZ.
+					// Or we can implement that by itInsertpoint = g_rgszWeaponNames.insert(itInsertpoint, weaponId);
 				}
 
 				else if (!_stricmp(szTempToken.c_str(), "ReactionTime"))
@@ -1487,7 +1718,7 @@ namespace BotProfileMgr
 		for (const auto& Character : m_Profiles)
 		{
 			bool bFirst = true;
-			for (const auto& szRef : Character.m_ReferencedTemplates)
+			for (const auto& szRef : Character.m_rgszRefTemplates)
 			{
 				if (bFirst)
 					bFirst = false;
@@ -1504,6 +1735,24 @@ namespace BotProfileMgr
 
 		hFile.close();
 		return true;
+	}
+
+	void LoadSkins(void)
+	{
+		fs::path hPath = g_GamePath.c_str() + L"\\gfx\\thumbnails\\skins"s;
+
+		for (const auto& hEntry : fs::directory_iterator(hPath))
+		{
+			if (hEntry.is_directory())
+				continue;
+
+			Name_t szName = hEntry.path().filename().string();
+			if (!szName.ends_with(".tga"))
+				continue;
+
+			szName.erase(szName.find(".tga"));
+			ImageLoader::Add(hEntry.path(), &m_Thumbnails[szName]);
+		}
 	}
 };
 
@@ -1531,6 +1780,7 @@ namespace MissionPack
 	inline Thumbnail_t		Thumbnail;
 	inline CareerGames_t	CareerGames;
 	inline KeyValueSet_t	CGKVs;
+	inline Difficulty_e		CurBrowsing{ Difficulty_e::EASY };
 
 	void CompileFileList(Files_t& rgFiles, const fs::path& hFolder, bool bCheck = true)
 	{
@@ -1569,6 +1819,7 @@ namespace MissionPack
 		}
 	}
 
+	// Load the folder as if it were a mission pack.
 	void LoadFolder(const fs::path& hFolder)
 	{
 		Name = hFolder.filename().string();
@@ -1650,6 +1901,36 @@ namespace MissionPack
 		}
 
 		BotProfileMgr::Save(rgFiles[FILE_BOT_PROFILE]);
+	}
+
+	// Is this character enrolled as our potential teammate?
+	bool IsTeammate(const Name_t& szName) noexcept
+	{
+		return std::find_if(CareerGames[CurBrowsing].m_rgszCharacters.begin(), CareerGames[CurBrowsing].m_rgszCharacters.end(),
+			[&szName](const Name_t& szCharacter)
+			{
+				return szName == szCharacter;
+			}
+		) != CareerGames[CurBrowsing].m_rgszCharacters.end();
+	}
+
+	// Is this character is enlisted as our enemy in any of our mission locations?
+	bool IsEnemy(const Name_t& szName) noexcept
+	{
+		for (const auto& Locus : CareerGames[CurBrowsing].m_Loci)
+		{
+			bool bFoundHere = std::find_if(Locus.m_rgszBots.begin(), Locus.m_rgszBots.end(),
+				[&szName](const Name_t& szCharacter)
+				{
+					return szName == szCharacter;
+				}
+			) != Locus.m_rgszBots.end();
+
+			if (bFoundHere)
+				return true;
+		}
+
+		return false;
 	}
 };
 
@@ -1739,6 +2020,7 @@ void MainMenuBar(void)
 			ImGui::MenuItem("Campaign", "F1", &g_bShowCampaignWindow, !(g_bitsAsyncStatus & Async_e::UPDATING_MISSION_PACK_INFO));
 			ImGui::MenuItem("Loci", "F2", &g_bShowLociWindow, !(g_bitsAsyncStatus & Async_e::UPDATING_MISSION_PACK_INFO));
 			ImGui::MenuItem("Maps", "F3", &g_bShowMapsWindow, !(g_bitsAsyncStatus & Async_e::UPDATING_MAPS_INFO));	// #TODO shotcut does not implement yet.
+			ImGui::MenuItem("BOTs", "F4", &g_bShowBotsWindow, !(g_bitsAsyncStatus & Async_e::UPDATING_MISSION_PACK_INFO));	// #TODO shotcut does not implement yet.
 			ImGui::EndMenu();
 		}
 
@@ -1812,6 +2094,9 @@ void ConfigWindow(void)
 				}
 			);
 			t.detach();
+
+			// Load skin portraits.
+			BotProfileMgr::LoadSkins();
 		}
 
 		//g_bitsAsyncStatus |= Async_e::REQ_UPDATE_GAME_INFO;
@@ -1898,6 +2183,7 @@ void CampaignWindow(void)
 				if (!ImGui::BeginTabItem(g_rgszDifficultyNames[(size_t)i]))
 					continue;
 
+				MissionPack::CurBrowsing = i;	// Switched to this tab.
 				auto& CareerGame = MissionPack::CareerGames[i];
 
 				if (ImGui::CollapsingHeader("Generic", ImGuiTreeNodeFlags_DefaultOpen))
@@ -2108,9 +2394,9 @@ void LocusWindow(void)
 	if (g_bitsAsyncStatus & (Async_e::UPDATING_MISSION_PACK_INFO | Async_e::UPDATING_MAPS_INFO) || !g_bShowLociWindow)	// The drawing is using map thumbnail.
 		return;
 
-	if (ImGui::Begin("Loci", &g_bShowLociWindow))
+	if (ImGui::Begin("Loci", &g_bShowLociWindow, ImGuiWindowFlags_NoResize))
 	{
-		constexpr ImGuiTableFlags bitsTableFlags = ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersV | ImGuiTableFlags_Hideable | ImGuiTableFlags_NoBordersInBody;
+		constexpr ImGuiTableFlags bitsTableFlags = ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders | ImGuiTableFlags_Hideable | ImGuiTableFlags_NoBordersInBody;
 		const auto vecSize = ImVec2(128 * 3 + 48, ImGui::GetTextLineHeightWithSpacing() * 3 + 128 * 3);
 		const auto vecWindowSize = ImVec2(vecSize.x + 16, vecSize.y + 70);
 
@@ -2157,8 +2443,12 @@ void LocusWindow(void)
 						ImGui::TableSetColumnIndex(iColumnCount[(size_t)i]);
 						ImGui::Text(Locus.m_szMap.c_str());
 
+						ImGui::PushID((szCurDifficulty + Locus.m_szMap).c_str());
+						bool bShouldOpen = ImGui::ImageButton((void*)(intptr_t)g_Maps[Locus.m_szMap].m_Thumbnail.m_iTexId, g_Maps[Locus.m_szMap].m_Thumbnail.Size());
+						ImGui::PopID();
+
 						static Locus_t LocusCopy{};	// Make a copy if we needs to enter editor.
-						if (ImGui::ImageButton((void*)(intptr_t)g_Maps[Locus.m_szMap].m_Thumbnail.m_iTexId, g_Maps[Locus.m_szMap].m_Thumbnail.Size()))
+						if (bShouldOpen)
 						{
 							ImGui::OpenPopup(UTIL_VarArgs("%s##%s", Locus.m_szMap.c_str(), szCurDifficulty));
 							LocusCopy = Locus;	// Make a copy only once. Or our changes will be kept after 1 frame.
@@ -2200,7 +2490,7 @@ void LocusWindow(void)
 							// Why? Because they can't be assign as your enemy at the same time.
 							Names_t& BotTeammates = MissionPack::CareerGames[i].m_rgszCharacters;
 
-							// Title picture.
+							// Title picture. #TODO make this a button such that we can select map via this?
 							ImGui::Image((void*)(intptr_t)g_Maps[Locus.m_szMap].m_WiderPreview.m_iTexId, g_Maps[Locus.m_szMap].m_WiderPreview.Size());
 
 							if (ImGui::CollapsingHeader(UTIL_VarArgs("%d Enem%s selected###EnemySelection", LocusCopy.m_rgszBots.size(), LocusCopy.m_rgszBots.size() < 2 ? "y" : "ies")) &&
@@ -2248,7 +2538,6 @@ void LocusWindow(void)
 							if (ImGui::CollapsingHeader("Task(s)", ImGuiTreeNodeFlags_DefaultOpen))
 							{
 								int iIdentifierIndex = 0;
-								//for (auto& Task : LocusCopy.m_Tasks)
 								for (auto itTask = LocusCopy.m_Tasks.begin(); itTask != LocusCopy.m_Tasks.end(); /* Do nothing */)
 								{
 									Task_t& Task = *itTask;
@@ -2267,9 +2556,23 @@ void LocusWindow(void)
 
 										if ((1 << iTaskType) & Tasks::REQ_WEAPON)
 										{
-											int iWeaponType = (int)Task.m_iWeapon;
-											ImGui::Combo("Weapon Type", &iWeaponType, g_rgszWeaponNames, IM_ARRAYSIZE(g_rgszWeaponNames));
-											Task.m_iWeapon = (Weapon_e)iWeaponType;
+											if (ImGui::BeginCombo("Required Weapon", Task.m_szWeapon.c_str(), ImGuiComboFlags_None))
+											{
+												for (int i = 0; i < _countof(g_rgszWeaponNames); i++)
+												{
+													if (!g_rgbIsTaskWeapon[i])
+														continue;
+
+													const bool bIsSelected = Task.m_szWeapon == g_rgszWeaponNames[i];
+													if (ImGui::Selectable(g_rgszWeaponNames[i], bIsSelected))
+														Task.m_szWeapon = g_rgszWeaponNames[i];
+
+													if (bIsSelected)
+														ImGui::SetItemDefaultFocus();
+												}
+
+												ImGui::EndCombo();
+											}
 										}
 
 										if ((1 << iTaskType) & Tasks::SURVIVE)
@@ -2340,7 +2643,7 @@ void MapsWindow(void)
 	if (g_bitsAsyncStatus & Async_e::UPDATING_MAPS_INFO || !g_bShowMapsWindow)
 		return;
 
-	if (ImGui::Begin("Maps## of independent window", &g_bShowMapsWindow))
+	if (ImGui::Begin("Maps## of independent window", &g_bShowMapsWindow, ImGuiWindowFlags_NoResize))
 	{
 		ImGui::SetWindowSize(ImVec2(240, 480));
 
@@ -2364,9 +2667,25 @@ void MapsWindow(void)
 					ImGui::Image((void*)(intptr_t)Map.m_Thumbnail.m_iTexId, Map.m_Thumbnail.Size());
 					ImGui::SameLine();
 				}
+				else
+				{
+					ImGui::Bullet(); ImGui::SameLine();
+					ImGui::TextColored(IMGUI_YELLOW, "Thumbnail no found.");
+				}
+
 				if (Map.m_bWiderPreviewExists)
 				{
 					ImGui::Image((void*)(intptr_t)Map.m_WiderPreview.m_iTexId, Map.m_WiderPreview.Size());
+				}
+				else
+				{
+					if (!Map.m_bThumbnailExists)	// If a map has only Thumbnail, do not draw our text along with it.
+					{
+						ImGui::Bullet();
+						ImGui::SameLine();
+					}
+
+					ImGui::TextColored(IMGUI_YELLOW, "Preview image no found.");
 				}
 
 				ImGui::Bullet(); ImGui::SameLine();
@@ -2393,6 +2712,262 @@ void MapsWindow(void)
 
 				ImGui::EndTooltip();
 			}
+		}
+	}
+
+	ImGui::End();
+}
+
+void BotsWindow(void)
+{
+	if (g_bitsAsyncStatus & Async_e::UPDATING_MISSION_PACK_INFO || !g_bShowBotsWindow)
+		return;
+
+	if (ImGui::Begin("BOTs", &g_bShowBotsWindow) && !g_BotProfiles.empty())
+	{
+		constexpr ImGuiTableFlags bitsTableFlags = ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders| ImGuiTableFlags_Hideable;
+		static BotProfile_t BotCopy{};
+
+		if (ImGui::BeginTable("TableOfBots", 1, bitsTableFlags))
+		{
+			for (auto itChar = g_BotProfiles.begin(); itChar != g_BotProfiles.end(); itChar++)
+			{
+				auto& Character = *itChar;
+
+				ImGui::TableNextRow();
+				ImGui::TableSetColumnIndex(0);
+
+				Thumbnail_t* pPortrait = nullptr;
+
+				// atoi() is better than stoi() since atoi would return 0 of it is not a number. #POTENTIAL_BUG assert that ctskin[] is as long as tskin[].
+				if (int iSkinIndex = std::atoi(Character.m_szSkin.c_str()); UTIL_GetStringType(Character.m_szSkin.c_str()) == 1 && iSkinIndex >= 0 && iSkinIndex < _countof(g_rgszCTSkinName))
+				{
+					if (iSkinIndex == 0)
+						iSkinIndex = 6;	// Random pic.
+
+					pPortrait = &BotProfileMgr::m_Thumbnails[g_rgszTSkinName[iSkinIndex]];
+					if (MissionPack::IsTeammate(Character.m_szName))
+						pPortrait = &BotProfileMgr::m_Thumbnails[g_rgszCTSkinName[iSkinIndex]];
+				}
+				else if (BotProfileMgr::m_Skins.contains(Character.m_szSkin) && BotProfileMgr::m_Thumbnails.contains(BotProfileMgr::m_Skins[Character.m_szSkin]))
+				{
+					pPortrait = &BotProfileMgr::m_Thumbnails[BotProfileMgr::m_Skins[Character.m_szSkin]];
+				}
+
+				bool bShouldEnterModal = false;
+				ImGui::PushID((Character.m_szName + "##ImageButton").c_str());
+				if (pPortrait)
+					bShouldEnterModal = ImGui::ImageButton((void*)(intptr_t)pPortrait->m_iTexId, pPortrait->Size());
+				else
+					bShouldEnterModal = ImGui::Button(UTIL_VarArgs("No Portrait##%s", Character.m_szName.c_str()), ImVec2(128, 128));
+				ImGui::PopID();
+				ImGui::SameLine();
+
+#pragma region CharacterEditingModal
+				if (bShouldEnterModal)
+				{
+					ImGui::OpenPopup(UTIL_VarArgs("%s##BotEditor", itChar->m_szName.c_str()));
+					BotCopy = *itChar;
+				}
+
+				// Always center this window when appearing
+				ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+
+				// Have to use the name stored in iterator. Otherwise things will get wired if user edits its name.
+				if (ImGui::BeginPopupModal(UTIL_VarArgs("%s##BotEditor", itChar->m_szName.c_str()), nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+				{
+					//Name_t m_szName{ "Error - No name"s };	// Not in attrib
+					//Weapons_t m_rgWeaponPreference{};
+					//bool m_bPrefersSilencer{ false };	// Not editable.
+					//bool m_bExplicitlyNoneWpnPref{ false };	// Share with WeaponPreference, no inheritance
+					//float m_flAttackDelay{ -1 };
+					//float m_flReactionTime{ -1 };
+					//int m_bitsDifficulty{ 0 };
+					//int m_iAggression{ -1 };
+					//int m_iCost{ -1 };
+					//int m_iSkill{ -1 };
+					//int m_iTeamwork{ -1 };
+					//int m_iVoicePitch{ -1 };
+					//std::list<std::string> m_ReferencedTemplates{};	// Not in attrib
+					//std::string m_szSkin{ "Error - No skin assigned"s };
+					//std::string m_szTeam{ "Error - No team preference"s };
+					//std::string m_szVoiceBank{ "Error - No voicebank assigned"s };
+					ImGui::InputText("Character Name", &BotCopy.m_szName);
+
+					ImGui::Text("Prefered Weapons:");
+					if (ImGui::BeginPopupContextItem("Add Weapon##popup"))
+					{
+						for (int i = 0; i < _countof(g_rgszWeaponNames); i++)
+						{
+							if (!g_rgbIsBuyCommand[i])
+								continue;
+
+							bool bAlreadyAdded = false;
+							for (const auto& szWeapon : BotCopy.m_rgszWpnPreference)
+							{
+								if (szWeapon == g_rgszWeaponNames[i])
+								{
+									bAlreadyAdded = true;
+									break;
+								}
+							}
+
+							if (bAlreadyAdded)
+								continue;
+
+							if (ImGui::Selectable(g_rgszWeaponNames[i]))
+								BotCopy.m_rgszWpnPreference.emplace_back(g_rgszWeaponNames[i]);
+						}
+
+						ImGui::EndPopup();
+					}
+					if (ImGui::IsItemHovered())
+						ImGui::SetTooltip("Right click to edit.\nDrag and draw in the following box to reorder.\nDraw the name out of the box to discard it.");
+
+					auto iLineCount = std::clamp(BotCopy.m_rgszWpnPreference.size(), 1U, 7U);
+					if (ImGui::BeginListBox("##WeaponList", ImVec2(-FLT_MIN, iLineCount * ImGui::GetTextLineHeightWithSpacing())))
+					{
+						for (auto itszWeapon = BotCopy.m_rgszWpnPreference.begin(); itszWeapon != BotCopy.m_rgszWpnPreference.end(); /* Do nothing */)
+						{
+							ImGui::Selectable(itszWeapon->c_str());
+
+							if (ImGui::IsItemActive() && !ImGui::IsItemHovered())
+							{
+								bool bMovingUp = (ImGui::GetMouseDragDelta(ImGuiMouseButton_Left).y < 0.f);
+								if (itszWeapon == BotCopy.m_rgszWpnPreference.begin() && bMovingUp)	// Draw the weapon name outsize the box to remove it.
+								{
+									itszWeapon = BotCopy.m_rgszWpnPreference.erase(itszWeapon);
+									ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
+									continue;
+								}
+
+								auto iterMovingTo = itszWeapon;
+								bMovingUp ? iterMovingTo-- : iterMovingTo++;
+
+								if (iterMovingTo == BotCopy.m_rgszWpnPreference.end())	// Draw the weapon name outsize the box to remove it.
+								{
+									itszWeapon = BotCopy.m_rgszWpnPreference.erase(itszWeapon);
+									ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
+									continue;
+								}
+
+								std::swap(*itszWeapon, *iterMovingTo);	// Have to dereference to actually iterators. Kinda' sucks.
+								ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
+							}
+
+							itszWeapon++;
+						}
+
+						// #TODO Handle 'none' tag.
+						ImGui::EndListBox();
+					}
+
+					ImGui::InputFloat("Attack Delay", &BotCopy.m_flAttackDelay, 0.05f, 0.25f, "%.2f", ImGuiInputTextFlags_CharsDecimal);
+					ImGui::InputFloat("Reaction Time", &BotCopy.m_flReactionTime, 0.05f, 0.25f, "%.2f", ImGuiInputTextFlags_CharsDecimal);
+					ImGui::CheckboxFlags(g_rgszDifficultyNames[0], &BotCopy.m_bitsDifficulty, (1 << Difficulty_e::EASY)); ImGui::SameLine();
+					ImGui::CheckboxFlags(g_rgszDifficultyNames[1], &BotCopy.m_bitsDifficulty, (1 << Difficulty_e::NORMAL));
+					ImGui::CheckboxFlags(g_rgszDifficultyNames[2], &BotCopy.m_bitsDifficulty, (1 << Difficulty_e::HARD)); ImGui::SameLine();
+					ImGui::CheckboxFlags(g_rgszDifficultyNames[3], &BotCopy.m_bitsDifficulty, (1 << Difficulty_e::EXPERT));
+					ImGui::InputInt("Aggression", &BotCopy.m_iAggression, 5, 20, ImGuiInputTextFlags_CharsDecimal);
+					ImGui::InputInt("Cost", &BotCopy.m_iCost, 1, 1, ImGuiInputTextFlags_CharsDecimal);
+					ImGui::InputInt("Skill", &BotCopy.m_iSkill, 5, 20, ImGuiInputTextFlags_CharsDecimal);
+					ImGui::InputInt("Teamwork", &BotCopy.m_iTeamwork, 5, 20, ImGuiInputTextFlags_CharsDecimal);
+					ImGui::InputInt("Voice Pitch", &BotCopy.m_iVoicePitch, 5, 20, ImGuiInputTextFlags_CharsDecimal);
+
+					iLineCount = std::clamp(BotCopy.m_rgszRefTemplates.size(), 1U, 7U);
+					if (ImGui::BeginListBox("##TemplateList", ImVec2(-FLT_MIN, iLineCount * ImGui::GetTextLineHeightWithSpacing())))
+					{
+						for (const auto& szTemplate : BotCopy.m_rgszRefTemplates)
+							ImGui::Selectable(szTemplate.c_str());	// #TODO edit template.
+
+						ImGui::EndListBox();
+					}
+
+					ImGui::InputText("Skin Reference", &BotCopy.m_szSkin);
+					ImGui::InputText("Preferred Team", &BotCopy.m_szTeam);	// #TODO combo list? T, CT, ANY
+					ImGui::InputText("Voicebank", &BotCopy.m_szVoiceBank);	// #UNDONE_LONG_TERM file selection?
+
+					auto pszErrorMessage = BotCopy.SanityCheck();	// A sanity a day keeps CTDs away.
+
+					if (ImGui::Button("OK", ImVec2(120, 0)))
+					{
+						if (pszErrorMessage != nullptr)
+						{
+							ImGui::OpenPopup("Error");	// Can't leave error modal coding here. Or the window will only be draw when the button 'OK' is clicked.
+						}
+						else
+						{
+							*itChar = std::move(BotCopy);
+							ImGui::CloseCurrentPopup();
+						}
+					}
+
+#pragma region Modal of Error
+					ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+
+					// Modal of error have to be draw before the end of the character editing dialog.
+					if (ImGui::BeginPopupModal("Error", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+					{
+						ImGui::TextWrapped(pszErrorMessage);	// It can't be nullptr or how do you get here?
+
+						float flWidth = ImGui::GetWindowWidth();
+						ImGui::SetCursorPosX((flWidth - 120.0f) / 2.0f);
+						if (ImGui::Button("OK", ImVec2(120, 0)))
+							ImGui::CloseCurrentPopup();
+
+						ImGui::EndPopup();
+					}
+#pragma endregion Modal of Error
+
+					ImGui::SetItemDefaultFocus();
+					ImGui::SameLine();
+					if (ImGui::Button("Cancel", ImVec2(120, 0))) { ImGui::CloseCurrentPopup(); }
+					ImGui::EndPopup();
+
+				}
+#pragma endregion CharacterEditingModal
+
+				auto vecPos = ImGui::GetCursorPos();
+				ImGui::Text(Character.m_szName.c_str());
+
+				ImGui::SameLine();
+				bool bFirst = true;
+				std::string szRefs = "(";
+				for (const auto& szRef : Character.m_rgszRefTemplates)
+				{
+					if (bFirst)
+						bFirst = false;
+					else
+						szRefs += '+';
+
+					szRefs += szRef;
+				}
+				szRefs += ')';
+				ImGui::Text(szRefs.c_str());
+
+				ImGui::SameLine();
+				ImGui::TextDisabled("Cost %d", Character.m_iCost);
+
+				float flY = vecPos.y + 22;	// Save the line 1 Y coord of this table.
+
+				vecPos.y += 22; ImGui::SetCursorPos(vecPos);
+				ImGui::TextColored(Character.m_iSkill > 66 ? IMGUI_GREEN : Character.m_iSkill > 33 ? IMGUI_YELLOW : IMGUI_RED, "Skill: %d", Character.m_iSkill);
+				vecPos.y += 22; ImGui::SetCursorPos(vecPos);
+				ImGui::TextColored(Character.m_iTeamwork > 66 ? IMGUI_GREEN : Character.m_iTeamwork > 33 ? IMGUI_YELLOW : IMGUI_RED, "Co-op: %d", Character.m_iTeamwork);
+				vecPos.y += 22; ImGui::SetCursorPos(vecPos);
+				ImGui::TextColored(Character.m_iAggression > 66 ? IMGUI_GREEN : Character.m_iAggression > 33 ? IMGUI_YELLOW : IMGUI_RED, "Bravery: %d", Character.m_iAggression);
+
+				vecPos = ImVec2((pPortrait ? pPortrait->m_iWidth : 128) + 120, flY); ImGui::SetCursorPos(vecPos);
+				ImGui::Text("Silencer User: %s", Character.m_bPrefersSilencer ? "Yes" : "No");
+
+				if (!Character.m_rgszWpnPreference.empty())
+				{
+					vecPos.y += 22; ImGui::SetCursorPos(vecPos);
+					ImGui::Text("Preference: %s", Character.m_rgszWpnPreference.front().c_str());
+				}
+			}
+
+			ImGui::EndTable();
 		}
 	}
 
@@ -2434,7 +3009,8 @@ int main(int argc, char** argv)
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
 
 	// Setup Dear ImGui style
-	ImGui::StyleColorsDark();
+	//ImGui::StyleColorsDark();
+	ImGui::StyleColorsLight();
 	//ImGui::StyleColorsClassic();
 
 	// Setup Platform/Renderer backends
@@ -2489,6 +3065,7 @@ int main(int argc, char** argv)
 		CampaignWindow();
 		LocusWindow();
 		MapsWindow();
+		BotsWindow();
 
 		// Rendering
 		ImGui::Render();

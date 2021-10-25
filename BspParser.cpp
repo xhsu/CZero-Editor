@@ -87,12 +87,20 @@ list<string> BSP_CompileResourceList(const char* pszBspPath) noexcept
 	while (p != pend)
 	{
 		static bool bExpectingWad = false;
+		static bool bExpectingSky = false;
+
 		if (*p == '"')
 		{
 			if (!_strnicmp(p, "\"wad\"", 5))
 			{
 				bExpectingWad = true;
 				p += 5;
+				continue;
+			}
+			else if (!_strnicmp(p, "\"skyname\"", 9))
+			{
+				bExpectingSky = true;
+				p += 9;
 				continue;
 			}
 
@@ -124,6 +132,18 @@ list<string> BSP_CompileResourceList(const char* pszBspPath) noexcept
 
 				bExpectingWad = false;
 				continue;	// Handled "wad" region.
+			}
+			else if (bExpectingSky)
+			{
+				std::string szBase("gfx/env/"s + p);
+				Res.emplace_back(szBase + "BK.tga");
+				Res.emplace_back(szBase + "DN.tga");
+				Res.emplace_back(szBase + "FT.tga");
+				Res.emplace_back(szBase + "LF.tga");
+				Res.emplace_back(szBase + "RT.tga");
+				Res.emplace_back(szBase + "UP.tga");
+
+				bExpectingSky = false;	// perform increament normally.
 			}
 
 			else if (!_stricmp(pExt, ".mdl") || !_stricmp(pExt, ".spr") || !_stricmp(pExt, ".wav"))
