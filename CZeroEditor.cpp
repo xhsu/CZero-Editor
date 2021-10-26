@@ -8,6 +8,7 @@
 #include <fstream>
 #include <iostream>
 #include <list>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <tuple>
@@ -1108,6 +1109,14 @@ struct BotProfile_t
 			hFile << std::endl;
 		}
 
+		if (m_szName == "Cole")
+		{
+			if (IsMemberInherited<int>(offsetof(BotProfile_t, m_iTeamwork)))
+			{
+				std::roundf(1);
+			}
+		}
+
 		SAVE_MEMBER_HELPER_INT(Aggression);
 		SAVE_MEMBER_HELPER_INT(Cost);
 		SAVE_MEMBER_HELPER_INT(Skill);
@@ -1142,7 +1151,7 @@ struct BotProfile_t
 
 			if constexpr (std::is_same_v<T, std::string>)	// Does my reference has no value for themself?
 			{
-				if (pRefValue->starts_with("Error - "s))
+				if (!pRefValue->empty() && pRefValue->starts_with("Error - "s))
 					continue;
 				else
 				{
@@ -1165,21 +1174,12 @@ struct BotProfile_t
 		if (bTemplateFound)
 			return (*pMyValue == *pRefValue);	// If there is a valid template, skip m_Default. It must be overwritten.
 
-		for (const auto& Name : m_rgszRefTemplates)
-		{
-			BotProfile_t* pRef = &BotProfileMgr::m_Templates[Name];
-			T* pRefValue = reinterpret_cast<T*>(size_t(pRef) + iOffset);
-
-			if (*pRefValue == *pMyValue)
-				return true;
-		}
-
 		// Don't forget 'Default' template.
 		T* pDefValue = reinterpret_cast<T*>(size_t(&BotProfileMgr::m_Default) + iOffset);
 		return (*pDefValue == *pMyValue);
 	}
 
-	void Reset(void)
+	void Reset(bool bDeleteReferences = true)
 	{
 		m_szName = "Error - No name"s;
 		m_rgszWpnPreference.clear();
@@ -1193,7 +1193,10 @@ struct BotProfile_t
 		m_iSkill = -1;
 		m_iTeamwork = -1;
 		m_iVoicePitch = -1;
-		m_rgszRefTemplates.clear();
+
+		if (bDeleteReferences)
+			m_rgszRefTemplates.clear();
+
 		m_szSkin = "";
 		m_szTeam = "";
 		m_szVoiceBank = "";
@@ -1218,7 +1221,7 @@ struct BotProfile_t
 			return "Skill must be a value between 0 and 100.";
 		if (m_iTeamwork < 0 || m_iTeamwork > 100)
 			return "Teamwork must be a value between 0 and 100.";
-		if (m_iVoicePitch < 0)
+		if (m_iVoicePitch < 1)
 			return "Voice pitch must be a value greater than 0.";
 		if (m_rgszRefTemplates.empty())
 			return "You must using at least one template for your character.";
@@ -1244,6 +1247,79 @@ struct BotProfile_t
 		}
 
 		return nullptr;	// Nullptr is good news!
+	}
+
+	void Inherit(const BotProfile_t& Parent) noexcept
+	{
+		if (!Parent.m_szName.starts_with("Error"))
+			m_szName = Parent.m_szName;
+
+		if (!Parent.m_rgszWpnPreference.empty())
+		{
+			m_rgszWpnPreference = Parent.m_rgszWpnPreference;
+			m_bExplicitlyNoneWpnPref = false;
+		}
+
+		if (Parent.m_flAttackDelay > 0)
+			m_flAttackDelay = Parent.m_flAttackDelay;
+
+		if (Parent.m_flReactionTime > 0)
+			m_flReactionTime = Parent.m_flReactionTime;
+
+		if (Parent.m_bitsDifficulty > 0)
+			m_bitsDifficulty = Parent.m_bitsDifficulty;
+
+		if (Parent.m_iAggression > 0)
+			m_iAggression = Parent.m_iAggression;
+
+		if (Parent.m_iCost > 0)
+			m_iCost = Parent.m_iCost;
+
+		if (Parent.m_iSkill > 0)
+			m_iSkill = Parent.m_iSkill;
+
+		if (Parent.m_iTeamwork > 0)
+			m_iTeamwork = Parent.m_iTeamwork;
+
+		if (Parent.m_iVoicePitch > 0)
+			m_iVoicePitch = Parent.m_iVoicePitch;
+
+		if (!Parent.m_szSkin.empty() && !Parent.m_szSkin.starts_with("Error"))
+			m_szSkin = Parent.m_szSkin;
+
+		if (!Parent.m_szTeam.empty() && !Parent.m_szTeam.starts_with("Error"))
+			m_szTeam = Parent.m_szTeam;
+
+		if (!Parent.m_szVoiceBank.empty() && !Parent.m_szVoiceBank.starts_with("Error"))
+			m_szVoiceBank = Parent.m_szVoiceBank;
+	}
+
+	void Inherit(bool bShouldResetFirst = true, bool bCopyFromDefault = true) noexcept
+	{
+		if (m_rgszRefTemplates.empty())
+			return;
+
+		if (bShouldResetFirst)
+			Reset(false);	// Will can inherit a shit if we have RefTemplate field cleared.
+
+		if (bCopyFromDefault)	// Copy from default first.
+		{
+			Inherit(BotProfileMgr::m_Default);
+			m_bExplicitlyNoneWpnPref = BotProfileMgr::m_Default.m_bExplicitlyNoneWpnPref;	// This should be copied standalone.
+		}
+
+		for (const auto& szInherit : m_rgszRefTemplates)
+		{
+			// Inherit code.
+			if (auto iter = BotProfileMgr::m_Templates.find(szInherit); iter != BotProfileMgr::m_Templates.end())
+			{
+				Inherit(iter->second);
+			}
+			else
+			{
+				std::cout << "Error while " << std::quoted(m_szName) << " attempting to inherit from " << std::quoted(iter->first) << " - invalid template reference " << szInherit << '\n';
+			}
+		}
 	}
 
 	Name_t m_szName{ "Error - No name"s };	// Not in attrib
@@ -1465,66 +1541,13 @@ namespace BotProfileMgr
 			{
 				m_Profiles.push_back(m_Default);	// Is that a ... copy?
 				pProfile = &m_Profiles.back();
-				pProfile->m_bExplicitlyNoneWpnPref = false;	// Or every character won't have any weapon preference.
 			}
 
 			// do inheritance in order of appearance
 			if (!bIsTemplate && !bIsDefault)
 			{
 				UTIL_Split(*iter, pProfile->m_rgszRefTemplates, "+"s);
-
-				for (const auto& szInherit : pProfile->m_rgszRefTemplates)
-				{
-					// Inherit code.
-					if (auto iter2 = m_Templates.find(szInherit); iter2 != m_Templates.end())
-					{
-						BotProfile_t& Inherit = iter2->second;
-
-						if (!Inherit.m_szName.starts_with("Error"))
-							pProfile->m_szName = Inherit.m_szName;
-
-						if (!Inherit.m_rgszWpnPreference.empty())
-							pProfile->m_rgszWpnPreference = Inherit.m_rgszWpnPreference;
-
-						if (Inherit.m_flAttackDelay > 0)
-							pProfile->m_flAttackDelay = Inherit.m_flAttackDelay;
-
-						if (Inherit.m_flReactionTime > 0)
-							pProfile->m_flReactionTime = Inherit.m_flReactionTime;
-
-						if (Inherit.m_bitsDifficulty > 0)
-							pProfile->m_bitsDifficulty = Inherit.m_bitsDifficulty;
-
-						if (Inherit.m_iAggression > 0)
-							pProfile->m_iAggression = Inherit.m_iAggression;
-
-						if (Inherit.m_iCost > 0)
-							pProfile->m_iCost = Inherit.m_iCost;
-
-						if (Inherit.m_iSkill > 0)
-							pProfile->m_iSkill = Inherit.m_iSkill;
-
-						if (Inherit.m_iTeamwork > 0)
-							pProfile->m_iTeamwork = Inherit.m_iTeamwork;
-
-						if (Inherit.m_iVoicePitch > 0)
-							pProfile->m_iVoicePitch = Inherit.m_iVoicePitch;
-
-						if (!Inherit.m_szSkin.starts_with("Error"))
-							pProfile->m_szSkin = Inherit.m_szSkin;
-
-						if (!Inherit.m_szTeam.starts_with("Error"))
-							pProfile->m_szTeam = Inherit.m_szTeam;
-
-						if (!Inherit.m_szVoiceBank.starts_with("Error"))
-							pProfile->m_szVoiceBank = Inherit.m_szVoiceBank;
-					}
-					else
-					{
-						std::cout << "Error parsing " << hPath << " - invalid template reference " << szInherit << '\n';
-						return false;
-					}
-				}
+				pProfile->Inherit(false, false);	// We already initialized.
 			}
 
 			// get name of this profile
@@ -1737,7 +1760,7 @@ namespace BotProfileMgr
 		return true;
 	}
 
-	void LoadSkins(void)
+	void LoadSkinThumbnails(void)
 	{
 		fs::path hPath = g_GamePath.c_str() + L"\\gfx\\thumbnails\\skins"s;
 
@@ -1781,6 +1804,7 @@ namespace MissionPack
 	inline CareerGames_t	CareerGames;
 	inline KeyValueSet_t	CGKVs;
 	inline Difficulty_e		CurBrowsing{ Difficulty_e::EASY };
+	inline std::mutex		Mutex;
 
 	void CompileFileList(Files_t& rgFiles, const fs::path& hFolder, bool bCheck = true)
 	{
@@ -1822,6 +1846,8 @@ namespace MissionPack
 	// Load the folder as if it were a mission pack.
 	void LoadFolder(const fs::path& hFolder)
 	{
+		const std::lock_guard<std::mutex> LockGuard(Mutex);
+
 		Name = hFolder.filename().string();
 		Folder = hFolder;
 
@@ -1936,8 +1962,12 @@ namespace MissionPack
 
 namespace Maps	// This is the game map instead of career quest 'Locus_t'!
 {
+	std::mutex Mutex;
+
 	void Load(void)
 	{
+		std::lock_guard<std::mutex> LockGuard(Mutex);
+
 		g_Maps.clear();
 
 		for (const auto& Directory : HalfLifeFileStructure::m_Directories)
@@ -2096,7 +2126,7 @@ void ConfigWindow(void)
 			t.detach();
 
 			// Load skin portraits.
-			BotProfileMgr::LoadSkins();
+			BotProfileMgr::LoadSkinThumbnails();
 		}
 
 		//g_bitsAsyncStatus |= Async_e::REQ_UPDATE_GAME_INFO;
@@ -2130,7 +2160,8 @@ void ConfigWindow(void)
 			{
 				if (ImGui::Selectable(hPath.filename().string().c_str()))
 				{
-					std::thread t([&hPath](void)
+					std::thread t(
+						[&hPath](void)
 						{
 							if (g_bitsAsyncStatus & Async_e::UPDATING_MISSION_PACK_INFO)
 								return;
@@ -2743,7 +2774,7 @@ void BotsWindow(void)
 				if (int iSkinIndex = std::atoi(Character.m_szSkin.c_str()); UTIL_GetStringType(Character.m_szSkin.c_str()) == 1 && iSkinIndex >= 0 && iSkinIndex < _countof(g_rgszCTSkinName))
 				{
 					if (iSkinIndex == 0)
-						iSkinIndex = 6;	// Random pic.
+						iSkinIndex = 6;	// 'Random' pic.
 
 					pPortrait = &BotProfileMgr::m_Thumbnails[g_rgszTSkinName[iSkinIndex]];
 					if (MissionPack::IsTeammate(Character.m_szName))
@@ -2754,17 +2785,17 @@ void BotsWindow(void)
 					pPortrait = &BotProfileMgr::m_Thumbnails[BotProfileMgr::m_Skins[Character.m_szSkin]];
 				}
 
-				bool bShouldEnterModal = false;
+				bool bShouldEnterCharacterEditor = false;
 				ImGui::PushID((Character.m_szName + "##ImageButton").c_str());
 				if (pPortrait)
-					bShouldEnterModal = ImGui::ImageButton((void*)(intptr_t)pPortrait->m_iTexId, pPortrait->Size());
+					bShouldEnterCharacterEditor = ImGui::ImageButton((void*)(intptr_t)pPortrait->m_iTexId, pPortrait->Size());
 				else
-					bShouldEnterModal = ImGui::Button(UTIL_VarArgs("No Portrait##%s", Character.m_szName.c_str()), ImVec2(128, 128));
+					bShouldEnterCharacterEditor = ImGui::Button(UTIL_VarArgs("No Portrait##%s", Character.m_szName.c_str()), ImVec2(128, 128));
 				ImGui::PopID();
 				ImGui::SameLine();
 
 #pragma region CharacterEditingModal
-				if (bShouldEnterModal)
+				if (bShouldEnterCharacterEditor)
 				{
 					ImGui::OpenPopup(UTIL_VarArgs("%s##BotEditor", itChar->m_szName.c_str()));
 					BotCopy = *itChar;
@@ -2794,10 +2825,45 @@ void BotsWindow(void)
 					//std::string m_szVoiceBank{ "Error - No voicebank assigned"s };
 					ImGui::InputText("Character Name", &BotCopy.m_szName);
 
-					ImGui::Text("Prefered Weapons:");
-					if (ImGui::BeginPopupContextItem("Add Weapon##popup"))
+					ImGui::Text("Applied Template(s):");
+					auto iLineCount = std::clamp(BotCopy.m_rgszRefTemplates.size(), 1U, 7U);
+					if (ImGui::BeginListBox("##TemplateList", ImVec2(-FLT_MIN, iLineCount * ImGui::GetTextLineHeightWithSpacing())))
 					{
-						for (int i = 0; i < _countof(g_rgszWeaponNames); i++)
+						for (const auto& [szName, Template] : BotProfileMgr::m_Templates)
+						{
+							bool bSelected = false;
+							Names_t::iterator itszSelected;
+							for (auto itszTemplate = BotCopy.m_rgszRefTemplates.begin(); itszTemplate != BotCopy.m_rgszRefTemplates.end(); ++itszTemplate)
+							{
+								if (*itszTemplate == szName)
+								{
+									itszSelected = itszTemplate;
+									bSelected = true;
+									break;
+								}
+							}
+
+							if (ImGui::Selectable(szName.c_str(), bSelected))	// #TODO edit template.
+							{
+								if (bSelected)
+									BotCopy.m_rgszRefTemplates.erase(itszSelected);
+								else
+									BotCopy.m_rgszRefTemplates.emplace_back(szName);
+							}
+						}
+
+						ImGui::EndListBox();
+					}
+
+					ImGui::CheckboxFlags(g_rgszDifficultyNames[0], &BotCopy.m_bitsDifficulty, (1 << Difficulty_e::EASY)); ImGui::SameLine();
+					ImGui::CheckboxFlags(g_rgszDifficultyNames[1], &BotCopy.m_bitsDifficulty, (1 << Difficulty_e::NORMAL)); ImGui::SameLine();
+					ImGui::CheckboxFlags(g_rgszDifficultyNames[2], &BotCopy.m_bitsDifficulty, (1 << Difficulty_e::HARD)); ImGui::SameLine();
+					ImGui::CheckboxFlags(g_rgszDifficultyNames[3], &BotCopy.m_bitsDifficulty, (1 << Difficulty_e::EXPERT));
+#pragma region Weapon preference selection
+					ImGui::Text("Prefered Weapons:");
+					if (ImGui::BeginPopupContextItem("Add Weapon##popup%s"))
+					{
+						for (int i = 0; i < _countof(g_rgszWeaponNames); ++i)
 						{
 							if (!g_rgbIsBuyCommand[i])
 								continue;
@@ -2822,9 +2888,9 @@ void BotsWindow(void)
 						ImGui::EndPopup();
 					}
 					if (ImGui::IsItemHovered())
-						ImGui::SetTooltip("Right click to edit.\nDrag and draw in the following box to reorder.\nDraw the name out of the box to discard it.");
+						ImGui::SetTooltip("Right click to append new preference at the end.\nDrag and draw in the following box to reorder.\nDraw the name out of the box to discard it.");
 
-					auto iLineCount = std::clamp(BotCopy.m_rgszWpnPreference.size(), 1U, 7U);
+					iLineCount = std::clamp(BotCopy.m_rgszWpnPreference.size(), 1U, 7U);
 					if (ImGui::BeginListBox("##WeaponList", ImVec2(-FLT_MIN, iLineCount * ImGui::GetTextLineHeightWithSpacing())))
 					{
 						for (auto itszWeapon = BotCopy.m_rgszWpnPreference.begin(); itszWeapon != BotCopy.m_rgszWpnPreference.end(); /* Do nothing */)
@@ -2855,34 +2921,20 @@ void BotsWindow(void)
 								ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
 							}
 
-							itszWeapon++;
+							++itszWeapon;
 						}
 
 						// #TODO Handle 'none' tag.
 						ImGui::EndListBox();
 					}
-
+#pragma endregion Weapon preference selection
 					ImGui::InputFloat("Attack Delay", &BotCopy.m_flAttackDelay, 0.05f, 0.25f, "%.2f", ImGuiInputTextFlags_CharsDecimal);
 					ImGui::InputFloat("Reaction Time", &BotCopy.m_flReactionTime, 0.05f, 0.25f, "%.2f", ImGuiInputTextFlags_CharsDecimal);
-					ImGui::CheckboxFlags(g_rgszDifficultyNames[0], &BotCopy.m_bitsDifficulty, (1 << Difficulty_e::EASY)); ImGui::SameLine();
-					ImGui::CheckboxFlags(g_rgszDifficultyNames[1], &BotCopy.m_bitsDifficulty, (1 << Difficulty_e::NORMAL));
-					ImGui::CheckboxFlags(g_rgszDifficultyNames[2], &BotCopy.m_bitsDifficulty, (1 << Difficulty_e::HARD)); ImGui::SameLine();
-					ImGui::CheckboxFlags(g_rgszDifficultyNames[3], &BotCopy.m_bitsDifficulty, (1 << Difficulty_e::EXPERT));
 					ImGui::InputInt("Aggression", &BotCopy.m_iAggression, 5, 20, ImGuiInputTextFlags_CharsDecimal);
 					ImGui::InputInt("Cost", &BotCopy.m_iCost, 1, 1, ImGuiInputTextFlags_CharsDecimal);
 					ImGui::InputInt("Skill", &BotCopy.m_iSkill, 5, 20, ImGuiInputTextFlags_CharsDecimal);
 					ImGui::InputInt("Teamwork", &BotCopy.m_iTeamwork, 5, 20, ImGuiInputTextFlags_CharsDecimal);
 					ImGui::InputInt("Voice Pitch", &BotCopy.m_iVoicePitch, 5, 20, ImGuiInputTextFlags_CharsDecimal);
-
-					iLineCount = std::clamp(BotCopy.m_rgszRefTemplates.size(), 1U, 7U);
-					if (ImGui::BeginListBox("##TemplateList", ImVec2(-FLT_MIN, iLineCount * ImGui::GetTextLineHeightWithSpacing())))
-					{
-						for (const auto& szTemplate : BotCopy.m_rgszRefTemplates)
-							ImGui::Selectable(szTemplate.c_str());	// #TODO edit template.
-
-						ImGui::EndListBox();
-					}
-
 					ImGui::InputText("Skin Reference", &BotCopy.m_szSkin);
 					ImGui::InputText("Preferred Team", &BotCopy.m_szTeam);	// #TODO combo list? T, CT, ANY
 					ImGui::InputText("Voicebank", &BotCopy.m_szVoiceBank);	// #UNDONE_LONG_TERM file selection?
@@ -2944,6 +2996,278 @@ void BotsWindow(void)
 				}
 				szRefs += ')';
 				ImGui::Text(szRefs.c_str());
+
+#pragma region CharacterTemplateModal
+				bool bShouldEnterTemplateSelection = false;
+				if (ImGui::BeginPopupContextItem(UTIL_VarArgs("TemplateEditingFor%s", Character.m_szName.c_str())))
+				{
+					if (ImGui::MenuItem("Reselect template..."))
+					{
+						BotCopy = *itChar;
+						BotCopy.Inherit();	// Consider values from Default and Templates only.
+						bShouldEnterTemplateSelection = true;
+					}
+
+					ImGui::EndPopup();
+				}
+
+				if (bShouldEnterTemplateSelection)
+					ImGui::OpenPopup(UTIL_VarArgs("%s: Templates", Character.m_szName.c_str()));
+
+				ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+
+				if (ImGui::BeginPopupModal(UTIL_VarArgs("%s: Templates", Character.m_szName.c_str()), nullptr, ImGuiWindowFlags_NoResize))
+				{
+					ImGui::SetWindowSize(ImVec2(240, 480));
+					auto iModalContentWidth = ImGui::GetWindowContentRegionMax().x - ImGui::GetWindowContentRegionMin().x;
+
+					ImGui::SetCursorPosX(240 / 2 - 60);
+					if (ImGui::Button("Add", ImVec2(120, 0)))
+						ImGui::OpenPopup("Append template");
+					if (ImGui::IsItemHovered())
+						ImGui::SetTooltip("Append a new template at the end.");
+
+					if (ImGui::BeginPopupContextItem("Append template"))
+					{
+						for (const auto& [szName, Template] : BotProfileMgr::m_Templates)
+						{
+							bool bAlreadyIn = false;
+							for (const auto& szTemplate : BotCopy.m_rgszRefTemplates)
+							{
+								if (szName == szTemplate)
+								{
+									bAlreadyIn = true;
+									break;
+								}
+							}
+
+							if (bAlreadyIn)
+								continue;
+
+							if (ImGui::MenuItem(szName.c_str()))
+							{
+								BotCopy.m_rgszRefTemplates.emplace_back(szName);
+								BotCopy.Inherit();	// Update heritage data.
+							}
+						}
+
+						ImGui::EndPopup();
+					}
+
+					ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 5.0f);
+					ImGui::BeginChild("ChildR", ImVec2(iModalContentWidth, 350), true, ImGuiWindowFlags_None);	// #TODO why would this causing malfunction of right-click pop-ups?
+
+					// Code reusage... so ugly...
+					auto fnDisplayTemplateWithOverrideInfo = [](const BotProfile_t& Tpl)
+					{
+						if (!Tpl.m_rgszWpnPreference.empty())
+						{
+							for (const auto& szWpn : Tpl.m_rgszWpnPreference)
+								ImGui::BulletText("WeaponPreference: %s", szWpn.c_str());
+						}
+						else if (Tpl.m_bExplicitlyNoneWpnPref)
+						{
+							if (BotCopy.m_bExplicitlyNoneWpnPref)
+								ImGui::BulletText("WeaponPreference: none");
+							else
+							{
+								ImGui::Bullet();
+								ImGui::TextColored(IMGUI_RED, "(Overrided) WeaponPreference: none");
+							}
+						}
+						if (Tpl.m_flAttackDelay >= 0)
+						{
+							if (Tpl.m_flAttackDelay == BotCopy.m_flAttackDelay)
+								ImGui::BulletText("Attack Delay: %.2f", Tpl.m_flAttackDelay);
+							else
+							{
+								ImGui::Bullet();
+								ImGui::TextColored(IMGUI_RED, "(Overrided) Attack Delay: %.2f", Tpl.m_flAttackDelay);
+							}
+						}
+						if (Tpl.m_flReactionTime >= 0)
+						{
+							if (Tpl.m_flReactionTime == BotCopy.m_flReactionTime)
+								ImGui::BulletText("Reaction Time: %.2f", Tpl.m_flReactionTime);
+							else
+							{
+								ImGui::Bullet();
+								ImGui::TextColored(IMGUI_RED, "(Overrided) Reaction Time: %.2f", Tpl.m_flReactionTime);
+							}
+						}
+						if (Tpl.m_bitsDifficulty > 0)
+						{
+							for (auto i = Difficulty_e::EASY; i < Difficulty_e::_LAST; ++i)
+							{
+								if (Tpl.m_bitsDifficulty & (1 << i))
+								{
+									if (Tpl.m_bitsDifficulty == BotCopy.m_bitsDifficulty)
+										ImGui::BulletText("Difficulty: %s", g_rgszDifficultyNames[(size_t)i]);
+									else
+									{
+										ImGui::Bullet();
+										ImGui::TextColored(IMGUI_RED, "(Overrided) Difficulty: %s", g_rgszDifficultyNames[(size_t)i]);
+									}
+								}
+							}
+						}
+						if (Tpl.m_iAggression >= 0 && Tpl.m_iAggression <= 100)
+						{
+							if (Tpl.m_iAggression == BotCopy.m_iAggression)
+								ImGui::BulletText("Aggression: %d", Tpl.m_iAggression);
+							else
+							{
+								ImGui::Bullet();
+								ImGui::TextColored(IMGUI_RED, "(Overrided) Aggression: %d", Tpl.m_iAggression);
+							}
+						}
+						if (Tpl.m_iCost >= 1 && Tpl.m_iCost <= 5)
+						{
+							if (Tpl.m_iCost == BotCopy.m_iCost)
+								ImGui::BulletText("Cost: %d", Tpl.m_iCost);
+							else
+							{
+								ImGui::Bullet();
+								ImGui::TextColored(IMGUI_RED, "(Overrided) Cost: %d", Tpl.m_iCost);
+							}
+						}
+						if (Tpl.m_iSkill >= 0 && Tpl.m_iSkill <= 100)
+						{
+							if (Tpl.m_iSkill == BotCopy.m_iSkill)
+								ImGui::BulletText("Skill: %d", Tpl.m_iSkill);
+							else
+							{
+								ImGui::Bullet();
+								ImGui::TextColored(IMGUI_RED, "(Overrided) Skill: %d", Tpl.m_iSkill);
+							}
+						}
+						if (Tpl.m_iTeamwork >= 0 && Tpl.m_iTeamwork <= 100)
+						{
+							if (Tpl.m_iTeamwork == BotCopy.m_iTeamwork)
+								ImGui::BulletText("Teamwork: %d", Tpl.m_iTeamwork);
+							else
+							{
+								ImGui::Bullet();
+								ImGui::TextColored(IMGUI_RED, "(Overrided) Teamwork: %d", Tpl.m_iTeamwork);
+							}
+						}
+						if (Tpl.m_iVoicePitch > 0)
+						{
+							if (Tpl.m_iVoicePitch == BotCopy.m_iVoicePitch)
+								ImGui::BulletText("Voice Pitch: %d", Tpl.m_iVoicePitch);
+							else
+							{
+								ImGui::Bullet();
+								ImGui::TextColored(IMGUI_RED, "(Overrided) Voice Pitch: %d", Tpl.m_iVoicePitch);
+							}
+						}
+						if (!Tpl.m_szSkin.empty())
+						{
+							if (Tpl.m_szSkin == BotCopy.m_szSkin)
+								ImGui::BulletText("Skin: %s", Tpl.m_szSkin.c_str());
+							else
+							{
+								ImGui::Bullet();
+								ImGui::TextColored(IMGUI_RED, "(Overrided) Skin: %s", Tpl.m_szSkin.c_str());
+							}
+						}
+						if (!Tpl.m_szTeam.empty())
+						{
+							if (Tpl.m_szTeam == BotCopy.m_szTeam)
+								ImGui::BulletText("Team: %s", Tpl.m_szTeam.c_str());
+							else
+							{
+								ImGui::Bullet();
+								ImGui::TextColored(IMGUI_RED, "(Overrided) Team: %s", Tpl.m_szTeam.c_str());
+							}
+						}
+						if (!Tpl.m_szVoiceBank.empty())
+						{
+							if (Tpl.m_szVoiceBank == BotCopy.m_szVoiceBank)
+								ImGui::BulletText("Voicebank: %s", Tpl.m_szVoiceBank.c_str());
+							else
+							{
+								ImGui::Bullet();
+								ImGui::TextColored(IMGUI_RED, "(Overrided) Voicebank: %s", Tpl.m_szVoiceBank.c_str());
+							}
+						}
+					};
+
+					// Show the situation of Default.
+					bool bTreeNodeExpanded = ImGui::TreeNode("Default##TemplateInfo");
+					if (ImGui::IsItemHovered())
+						ImGui::SetTooltip("All characters have to inherit from Default.\nYou cannot reorder, delete or edit this one.");
+					if (bTreeNodeExpanded)
+					{
+						fnDisplayTemplateWithOverrideInfo(BotProfileMgr::m_Default);
+						ImGui::TreePop();
+					}
+
+					// List all template.
+					for (auto itszTemplate = BotCopy.m_rgszRefTemplates.begin(); itszTemplate != BotCopy.m_rgszRefTemplates.end(); /* Do nothing */)
+					{
+						assert(BotProfileMgr::m_Templates.contains(*itszTemplate));
+						auto& Template = BotProfileMgr::m_Templates[*itszTemplate];
+						bTreeNodeExpanded = ImGui::TreeNode(itszTemplate->c_str());
+
+						if (!bTreeNodeExpanded && ImGui::IsItemHovered())
+							ImGui::SetTooltip("Right-click to delete.\nDrag and draw to reorder.");
+
+						// Right-click to delete.
+						if (!bTreeNodeExpanded && ImGui::BeginPopupContextItem(itszTemplate->c_str()))
+						{
+							if (ImGui::MenuItem("Delete"))
+							{
+								itszTemplate = BotCopy.m_rgszRefTemplates.erase(itszTemplate);
+								BotCopy.Inherit();	// Update heritage data.
+								continue;
+							}
+
+							ImGui::EndPopup();
+						}
+
+						// Reordering.
+						if (!bTreeNodeExpanded && ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+						{
+							ImGui::SetDragDropPayload("itszTemplate", &itszTemplate, sizeof(itszTemplate));
+
+							// Display preview
+							ImGui::Text("Reordering: %s", itszTemplate->c_str());
+							ImGui::EndDragDropSource();
+						}
+						if (!bTreeNodeExpanded && ImGui::BeginDragDropTarget())
+						{
+							if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("itszTemplate"))
+							{
+								IM_ASSERT(payload->DataSize == sizeof(itszTemplate));
+								auto itszTemplateDragged = *(decltype(itszTemplate)*)payload->Data;
+								std::swap(*itszTemplateDragged, *itszTemplate);
+								BotCopy.Inherit();	// Update heritage data.
+							}
+
+							ImGui::EndDragDropTarget();
+						}
+
+						// Template value preview.
+						if (bTreeNodeExpanded)
+						{
+							fnDisplayTemplateWithOverrideInfo(Template);
+							ImGui::TreePop();
+						}
+
+						++itszTemplate;
+					}
+
+					ImGui::EndChild();
+					ImGui::PopStyleVar();
+
+					ImGui::SetCursorPos(ImVec2(240 / 2 - 60, ImGui::GetWindowContentRegionMax().y - 24));
+					if (ImGui::Button("Cancel", ImVec2(120, 24)))
+						ImGui::CloseCurrentPopup();
+
+					ImGui::EndPopup();
+				}
+#pragma endregion CharacterTemplateModal
 
 				ImGui::SameLine();
 				ImGui::TextDisabled("Cost %d", Character.m_iCost);
