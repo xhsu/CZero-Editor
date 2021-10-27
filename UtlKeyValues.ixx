@@ -5,6 +5,7 @@ module;
 #endif
 
 // C++
+#include <concepts>	// std::integral, etc...
 #include <string>	// stof
 
 // C
@@ -19,47 +20,55 @@ export module UtlKeyValues;
 import UtlBuffer;
 import UtlString;
 
+// Entry - Subkey or KeyValue
+// Subkey - Contains only Entries, but no value for itself.
+// KeyValue - A pair of string.
+// Key - the "Name" of a Subkey.
+// Value - the "Number/String" part of a KeyValue.
+
 export struct NewKeyValues
 {
-	NewKeyValues(const char* setName)
+	NewKeyValues(const char* pszName) noexcept
 	{
-		m_szName = nullptr;
-		m_szValue = nullptr;
-
 		Init();
-		SetName(setName);
+		SetName(pszName);
 	}
-	virtual ~NewKeyValues(void)
+	//NewKeyValues(const std::integral auto& index) noexcept
+	//{
+	//	Init();
+	//	SetName(std::to_string(index).c_str());
+	//}
+	virtual ~NewKeyValues(void) noexcept
 	{
 		RemoveEverything();
 	}
 
 	// set/get name
-	virtual const char* GetName(void)
+	const char* GetName(void) const noexcept
 	{
-		if (m_szName)
-			return m_szName;
+		if (m_pszName)
+			return m_pszName;
 
 		return "";
 	}
-	virtual void SetName(const char* setName)
+	void SetName(const char* pszName) noexcept
 	{
-		if (!setName)
-			setName = "";
+		if (!pszName)
+			pszName = "";
 
-		if (m_szName)
+		if (m_pszName)
 		{
-			free(m_szName);
-			m_szName = nullptr;
+			free(m_pszName);
+			m_pszName = nullptr;
 		}
 
-		size_t len = strlen(setName);
-		m_szName = (char*)malloc(len + 1);
-		strcpy(m_szName, setName);
+		size_t len = strlen(pszName);
+		m_pszName = (char*)malloc(len + 1);
+		strcpy(m_pszName, pszName);
 	}
 
 	// load/save file
-	virtual bool LoadFromFile(const char* resourceName)
+	bool LoadFromFile(const char* resourceName) noexcept
 	{
 		FILE* f = fopen(resourceName, "rb");
 		if (!f)
@@ -84,7 +93,7 @@ export struct NewKeyValues
 
 		return true;
 	}
-	virtual bool SaveToFile(const char* resourceName)
+	bool SaveToFile(const char* resourceName) noexcept
 	{
 		FILE* f = fopen(resourceName, "wb");
 		if (!f)
@@ -101,7 +110,7 @@ export struct NewKeyValues
 	}
 
 	// load from text buffer
-	virtual bool LoadFromBuffer(const char* pBuffer)
+	bool LoadFromBuffer(const char* pBuffer) noexcept
 	{
 		CBuffer buf;
 		char token[100];
@@ -115,7 +124,7 @@ export struct NewKeyValues
 		NewKeyValues* pPreviousKey = nullptr;
 		NewKeyValues* pCurrentKey = this;
 
-		while (1)
+		while (true)
 		{
 			// get the key
 			got = ReadToken(token, buf);
@@ -130,7 +139,7 @@ export struct NewKeyValues
 
 				if (pPreviousKey)
 				{
-					pPreviousKey->SetNextKey(pCurrentKey);
+					pPreviousKey->m_pPeer = pCurrentKey;
 				}
 			}
 			else
@@ -158,7 +167,7 @@ export struct NewKeyValues
 
 		return true;
 	}
-	virtual bool SaveToBuffer(char* pBuffer, size_t* iSize)
+	bool SaveToBuffer(char* pBuffer, size_t* iSize) noexcept
 	{
 		CBuffer buf(0x10000);
 		RecursiveSaveToBuffer(buf, 0);
@@ -170,10 +179,10 @@ export struct NewKeyValues
 		return true;
 	}
 
-	// find a subkey
-	virtual NewKeyValues* FindKey(const char* keyName, bool bCreate = false)
+	// find a entry
+	NewKeyValues* FindEntry(const char* pszName, bool bCreate = false) noexcept
 	{
-		if (!keyName || !keyName[0])
+		if (!pszName || !pszName[0])
 			return this;
 
 		NewKeyValues* lastItem = nullptr;
@@ -183,7 +192,7 @@ export struct NewKeyValues
 		{
 			lastItem = dat;
 
-			if (!strcmp(keyName, dat->m_szName))
+			if (!strcmp(pszName, dat->m_pszName))
 			{
 				break;
 			}
@@ -193,7 +202,7 @@ export struct NewKeyValues
 		{
 			if (bCreate)
 			{
-				dat = new NewKeyValues(keyName);
+				dat = new NewKeyValues(pszName);
 
 				if (lastItem)
 				{
@@ -213,60 +222,55 @@ export struct NewKeyValues
 		return dat;
 	}
 
-	// craete a subkey
-	virtual NewKeyValues* CreateNewKey(void)
+	// craete a entry
+	NewKeyValues* CreateEntry(const char* pszName = nullptr) noexcept	// nullptr on pszName to represent a auto-index entry name.
 	{
-		int newID = 1;
+		NewKeyValues* dat = nullptr;
 
-		for (NewKeyValues* dat = m_pSub; dat != nullptr; dat = dat->m_pPeer)
+		if (!pszName)
 		{
-			int val = atoi(dat->GetName());
+			int index = 1;
 
-			if (newID <= val)
+			for (NewKeyValues* dat = m_pSub; dat != nullptr; dat = dat->m_pPeer)
 			{
-				newID = val + 1;
+				if (auto val = atoi(dat->GetName()); index <= val)
+					index = val + 1;
 			}
+
+			dat = new NewKeyValues(std::to_string(index).c_str());
 		}
+		else
+			dat = new NewKeyValues(pszName);
 
-		char buf[12];
-		sprintf(buf, "%d", newID);
-
-		return CreateKey(buf);
-	}
-	virtual NewKeyValues* CreateKey(const char* keyName)
-	{
-		NewKeyValues* dat = new NewKeyValues(keyName);
-
-		AddSubKey(dat);
-
+		AddEntry(dat);
 		return dat;
 	}
 
-	// add/remove sub key
-	virtual void AddSubKey(NewKeyValues* subKey)
+	// add/remove an existing entry
+	void AddEntry(NewKeyValues* pEntry)
 	{
 		if (m_pSub == nullptr)
 		{
-			m_pSub = subKey;
+			m_pSub = pEntry;
 		}
 		else
 		{
 			NewKeyValues* pTempDat = m_pSub;
 
-			while (pTempDat->GetNextKey() != nullptr)
+			while (pTempDat->GetNextEntry() != nullptr)
 			{
-				pTempDat = pTempDat->GetNextKey();
+				pTempDat = pTempDat->GetNextEntry();
 			}
 
-			pTempDat->SetNextKey(subKey);
+			pTempDat->m_pPeer = pEntry;
 		}
 	}
-	virtual void RemoveSubKey(NewKeyValues* subKey)
+	void RemoveEntry(NewKeyValues* pEntry)
 	{
-		if (!subKey)
+		if (!pEntry)
 			return;
 
-		if (m_pSub == subKey)
+		if (m_pSub == pEntry)
 		{
 			m_pSub = m_pSub->m_pPeer;
 		}
@@ -276,7 +280,7 @@ export struct NewKeyValues
 
 			while (dat->m_pPeer)
 			{
-				if (dat->m_pPeer == subKey)
+				if (dat->m_pPeer == pEntry)
 				{
 					dat->m_pPeer = dat->m_pPeer->m_pPeer;
 					break;
@@ -286,20 +290,19 @@ export struct NewKeyValues
 			}
 		}
 
-		subKey->m_pPeer = nullptr;
+		pEntry->m_pPeer = nullptr;
 	}
 
-	virtual NewKeyValues* GetNextKey(void)
+	// get entry
+	NewKeyValues* GetFirstEntry(void) const noexcept
+	{
+		return m_pSub;
+	}
+	NewKeyValues* GetNextEntry(void) const noexcept
 	{
 		return m_pPeer;
 	}
-	virtual void SetNextKey(NewKeyValues* dat)
-	{
-		m_pPeer = dat;
-	}
-
-	// get key
-	virtual NewKeyValues* GetFirstSubKey(void)
+	NewKeyValues* GetFirstSubkey(void) const noexcept
 	{
 		NewKeyValues* dat = m_pSub;
 
@@ -310,7 +313,7 @@ export struct NewKeyValues
 
 		return dat;
 	}
-	virtual NewKeyValues* GetNextSubKey(void)
+	NewKeyValues* GetNextSubkey(void) const noexcept
 	{
 		NewKeyValues* dat = m_pPeer;
 
@@ -321,7 +324,7 @@ export struct NewKeyValues
 
 		return dat;
 	}
-	virtual NewKeyValues* GetFirstValue(void)
+	NewKeyValues* GetFirstKeyValue(void) const noexcept
 	{
 		NewKeyValues* dat = m_pSub;
 
@@ -332,7 +335,7 @@ export struct NewKeyValues
 
 		return dat;
 	}
-	virtual NewKeyValues* GetNextValue(void)
+	NewKeyValues* GetNextKeyValue(void) const noexcept
 	{
 		NewKeyValues* dat = m_pPeer;
 
@@ -344,110 +347,94 @@ export struct NewKeyValues
 		return dat;
 	}
 
-	// if not subkey return true
-	virtual bool IsEmpty(const char* keyName = nullptr)
+	// return true if not subkey or value included.
+	bool IsEmpty(void) const noexcept
 	{
-		NewKeyValues* dat = FindKey(keyName);
+		return !m_pSub && !m_pszValue;
+	}
+	bool IsKeyValue(void) const noexcept
+	{
+		return m_pszValue != nullptr;
+	}
+	bool IsSubkey(void) const noexcept
+	{
+		return m_pSub != nullptr;
+	}
 
+	// value
+	template<typename T> T GetValue(const char* pszSubkeyName = nullptr) noexcept requires(std::integral<T> || std::floating_point<T> || std::convertible_to<T, std::string>)
+	{
+		NewKeyValues* dat = FindEntry(pszSubkeyName);
+		if (!dat || !dat->m_pszValue)
+		{
+			if constexpr (std::convertible_to<T, std::string>)
+				return "";
+			else
+				return 0;
+		}
+
+		if constexpr (std::floating_point<T>)
+		{
+			return static_cast<T>(dat->m_flValue);
+		}
+		else if constexpr (std::integral<T>)
+		{
+			return static_cast<T>(std::roundf(dat->m_flValue));
+		}
+		else
+		{
+			return dat->m_pszValue;
+		}
+	}
+	template<typename T> bool SetValue(const char* pszSubkeyName, const T& Value) noexcept requires(std::integral<T> || std::floating_point<T> || std::convertible_to<T, std::string>)	// Create new entry on no found.
+	{
+		NewKeyValues* dat = FindEntry(pszSubkeyName, true);
 		if (!dat)
-			return true;
+			return false;
 
-		if (!dat->m_pSub)
-			return true;
-
-		return false;
-	}
-
-	// set value
-	virtual const char* GetString(const char* keyName = nullptr, const char* defaultValue = "")
-	{
-		NewKeyValues* dat = FindKey(keyName);
-
-		if (dat && dat->m_szValue)
+		if (dat->m_pszValue)
 		{
-			return dat->m_szValue;
+			free(dat->m_pszValue);
+			dat->m_pszValue = nullptr;
 		}
 
-		return defaultValue;
-	}
-	virtual int GetInt(const char* keyName = nullptr, int defaultValue = 0)
-	{
-		NewKeyValues* dat = FindKey(keyName);
-
-		if (dat)
+		if constexpr (std::integral<T> || std::floating_point<T>)
 		{
-			return dat->m_iValue;
+			std::string szValue = std::to_string(Value);
+			dat->m_pszValue = (char*)malloc(szValue.length() + 1);
+			strcpy_s(dat->m_pszValue, szValue.length() + 1, szValue.c_str());
+
+			dat->m_flValue = static_cast<float>(Value);
 		}
-
-		return defaultValue;
-	}
-	virtual float GetFloat(const char* keyName = nullptr, float defaultValue = 0)
-	{
-		NewKeyValues* dat = FindKey(keyName);
-
-		if (dat)
+		else	// i.e. strings.
 		{
-			return dat->m_flValue;
-		}
-
-		return defaultValue;
-	}
-
-	// get value
-	virtual void SetString(const char* keyName, const char* value)
-	{
-		NewKeyValues* dat = FindKey(keyName, true);
-
-		if (dat)
-		{
-			if (dat->m_szValue)
+			if constexpr (std::is_same_v<std::decay_t<T>, char*>)
 			{
-				free(dat->m_szValue);
-				dat->m_szValue = nullptr;
+				size_t len = strlen(Value);
+				dat->m_pszValue = (char*)malloc(len + 1);
+				strcpy(dat->m_pszValue, Value);
+			}
+			else	// i.e. std::string.
+			{
+				dat->m_pszValue = (char*)malloc(Value.length() + 1);
+				strcpy_s(dat->m_pszValue, Value.length() + 1, Value.c_str());
 			}
 
-			size_t len = strlen(value);
-			dat->m_szValue = (char*)malloc(len + 1);
-			strcpy(dat->m_szValue, value);
-		}
-	}
-	virtual void SetInt(const char* keyName, int value)
-	{
-		NewKeyValues* dat = FindKey(keyName, true);
-
-		if (dat)
-		{
-			if (dat->m_szValue)
+			switch (UTIL_GetStringType(dat->m_pszValue))
 			{
-				free(dat->m_szValue);
-				dat->m_szValue = nullptr;
+			default:
+			case 0:	// String
+				dat->m_flValue = 0;
+				break;
+
+			case 1:	// Integer
+			case 2:	// Floating point
+				dat->m_flValue = std::atof(dat->m_pszValue);
+				break;
 			}
-
-			dat->m_szValue = (char*)malloc(16);
-			sprintf(dat->m_szValue, "%d", value);
-
-			dat->m_iValue = value;
-			dat->m_flValue = (float)value;
 		}
-	}
-	virtual void SetFloat(const char* keyName, float value)
-	{
-		NewKeyValues* dat = FindKey(keyName, true);
 
-		if (dat)
-		{
-			if (dat->m_szValue)
-			{
-				free(dat->m_szValue);
-				dat->m_szValue = nullptr;
-			}
-
-			dat->m_szValue = (char*)malloc(16);
-			sprintf(dat->m_szValue, "%.6f", value);
-
-			dat->m_flValue = value;
-			dat->m_iValue = (int)std::roundf(value);
-		}
+		return true;
 	}
 
 	// remove all key/value
@@ -481,13 +468,12 @@ private:
 			delete dat;
 		}
 
-		m_iValue = 0;
 		m_flValue = 0;
 
-		if (m_szValue)
+		if (m_pszValue)
 		{
-			free(m_szValue);
-			m_szValue = nullptr;
+			free(m_pszValue);
+			m_pszValue = nullptr;
 		}
 	}
 
@@ -510,7 +496,7 @@ private:
 			if (token[0] == '}')
 				break;
 
-			NewKeyValues* dat = CreateKey(token);
+			NewKeyValues* dat = CreateEntry(token);
 
 			// get the value
 			got = ReadToken(token, buf);
@@ -531,23 +517,18 @@ private:
 			{
 				type = UTIL_GetStringType(token);
 
-				if (type == 1)
-				{
-					dat->m_iValue = std::atoi(token);
-					dat->m_flValue = (float)dat->m_iValue;
-				}
-				else if (type == 2)
+				if (type == 1 || type == 2)
 					dat->m_flValue = std::stof(token);
 
-				if (dat->m_szValue)
+				if (dat->m_pszValue)
 				{
-					free(dat->m_szValue);
-					dat->m_szValue = nullptr;
+					free(dat->m_pszValue);
+					dat->m_pszValue = nullptr;
 				}
 
 				size_t len = strlen(token);
-				dat->m_szValue = (char*)malloc(len + 1);
-				strcpy_s(dat->m_szValue, len + 1, token);
+				dat->m_pszValue = (char*)malloc(len + 1);
+				strcpy_s(dat->m_pszValue, len + 1, token);
 			}
 		}
 	}
@@ -555,7 +536,7 @@ private:
 	{
 		WriteIndents(buf, indentLevel);
 		buf.Write("\"", 1);
-		buf.Write(m_szName, strlen(m_szName));
+		buf.Write(m_pszName, strlen(m_pszName));
 		buf.Write("\"\n", 2);
 		WriteIndents(buf, indentLevel);
 		buf.Write("{\n", 2);
@@ -572,7 +553,7 @@ private:
 				buf.Write("\"", 1);
 				buf.Write(dat->GetName(), strlen(dat->GetName()));
 				buf.Write("\"\t\t\"", 4);
-				buf.Write(dat->GetString(), strlen(dat->GetString()));
+				buf.Write(dat->GetValue<const char*>(), strlen(dat->GetValue<const char*>()));
 				buf.Write("\"\n", 2);
 			}
 		}
@@ -591,19 +572,18 @@ private:
 
 	void Init(void)
 	{
-		if (m_szName)
+		if (m_pszName)
 		{
-			free(m_szName);
-			m_szName = nullptr;
+			free(m_pszName);
+			m_pszName = nullptr;
 		}
 
-		if (m_szValue)
+		if (m_pszValue)
 		{
-			free(m_szValue);
-			m_szValue = nullptr;
+			free(m_pszValue);
+			m_pszValue = nullptr;
 		}
 
-		m_iValue = 0;
 		m_flValue = 0;
 
 		m_pPeer = nullptr;
@@ -657,12 +637,11 @@ private:
 		}
 	}
 
-	char* m_szName;
+	char* m_pszName{ nullptr };
 
-	char* m_szValue;
-	int m_iValue;
-	float m_flValue;
+	char* m_pszValue{ nullptr };
+	double m_flValue{ 0.0 };
 
-	NewKeyValues* m_pPeer;
-	NewKeyValues* m_pSub;
+	NewKeyValues* m_pPeer{ nullptr };
+	NewKeyValues* m_pSub{ nullptr };
 };
