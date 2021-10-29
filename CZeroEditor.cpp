@@ -12,6 +12,7 @@
 #include <string>
 #include <thread>
 #include <tuple>
+#include <type_traits>
 #include <unordered_map>
 
 // C
@@ -52,8 +53,11 @@ using namespace std::string_literals;
 
 extern std::list<std::string> BSP_CompileResourceList(const char* pszBspPath);
 
-template<class... Ts>
+template<typename... Ts>
 concept all_the_same = sizeof...(Ts) < 2 || std::conjunction_v<std::is_same<std::tuple_element_t<0, std::tuple<Ts...>>, Ts>...>;
+
+template<typename T, typename... Ts>
+concept all_same_as = std::conjunction_v<std::is_same<T, Ts>...>;
 
 
 
@@ -1031,7 +1035,6 @@ struct BotProfile_t
 		m_szName(rhs.m_szName),
 		m_rgszWpnPreference(rhs.m_rgszWpnPreference),
 		m_bPrefersSilencer(rhs.m_bPrefersSilencer),
-		m_bExplicitlyNoneWpnPref(rhs.m_bExplicitlyNoneWpnPref),
 		m_flAttackDelay(rhs.m_flAttackDelay),
 		m_flReactionTime(rhs.m_flReactionTime),
 		m_bitsDifficulty(rhs.m_bitsDifficulty),
@@ -1049,7 +1052,6 @@ struct BotProfile_t
 		m_szName = rhs.m_szName;
 		m_rgszWpnPreference = rhs.m_rgszWpnPreference;
 		m_bPrefersSilencer = rhs.m_bPrefersSilencer;
-		m_bExplicitlyNoneWpnPref = rhs.m_bExplicitlyNoneWpnPref;
 		m_flAttackDelay = rhs.m_flAttackDelay;
 		m_flReactionTime = rhs.m_flReactionTime;
 		m_bitsDifficulty = rhs.m_bitsDifficulty;
@@ -1068,7 +1070,6 @@ struct BotProfile_t
 		m_szName(std::move(rhs.m_szName)),
 		m_rgszWpnPreference(std::move(rhs.m_rgszWpnPreference)),
 		m_bPrefersSilencer(rhs.m_bPrefersSilencer),
-		m_bExplicitlyNoneWpnPref(rhs.m_bExplicitlyNoneWpnPref),
 		m_flAttackDelay(rhs.m_flAttackDelay),
 		m_flReactionTime(rhs.m_flReactionTime),
 		m_bitsDifficulty(rhs.m_bitsDifficulty),
@@ -1086,7 +1087,6 @@ struct BotProfile_t
 		m_szName = std::move(rhs.m_szName);
 		m_rgszWpnPreference = std::move(rhs.m_rgszWpnPreference);
 		m_bPrefersSilencer = rhs.m_bPrefersSilencer;
-		m_bExplicitlyNoneWpnPref = rhs.m_bExplicitlyNoneWpnPref;
 		m_flAttackDelay = rhs.m_flAttackDelay;
 		m_flReactionTime = rhs.m_flReactionTime;
 		m_bitsDifficulty = rhs.m_bitsDifficulty;
@@ -1103,42 +1103,25 @@ struct BotProfile_t
 	}
 	virtual ~BotProfile_t() {}
 
-	bool SaveAttrib(std::ofstream& hFile) const
+	bool SaveAttrib(std::ofstream& hFile) noexcept
 	{
-		if (m_bExplicitlyNoneWpnPref)
-			hFile << "\tWeaponPreference = none" << std::endl;
-		else
+		if (AttribValid(offsetof(BotProfile_t, m_rgszWpnPreference)))
 		{
 			for (const auto& szWeapon : m_rgszWpnPreference)
-			{
-				if (!m_rgszRefTemplates.empty())
-				{
-					BotProfile_t& Ref = BotProfileMgr::m_Templates[m_rgszRefTemplates.back()];	// #PENDING_ON_REVIEW this should never happen. If there is a weapon template, one should never customize his weapon preference.
-
-					for (const auto& szRefWpn : Ref.m_rgszWpnPreference)
-					{
-						if (szRefWpn == szWeapon)
-							goto LAB_SKIP_SAVING;
-					}
-				}
-
 				hFile << "\tWeaponPreference = " << szWeapon << std::endl;
-
-			LAB_SKIP_SAVING:;
-			}
 		}
 
-#define SAVE_MEMBER_HELPER_INT(x)	if (m_i##x >= 0 && !IsMemberInherited<int>(offsetof(BotProfile_t, m_i##x)))	\
+#define SAVE_MEMBER_HELPER_INT(x)	if (AttribValid<int>(offsetof(BotProfile_t, m_i##x)))	\
 										hFile << "\t" #x " = " << m_i##x << std::endl
-#define SAVE_MEMBER_HELPER_FLT(x)	if (m_fl##x >= 0 && !IsMemberInherited<float>(offsetof(BotProfile_t, m_fl##x)))	\
+#define SAVE_MEMBER_HELPER_FLT(x)	if (AttribValid<float>(offsetof(BotProfile_t, m_fl##x)))	\
 										hFile << "\t" #x " = " << m_fl##x << std::endl
-#define SAVE_MEMBER_HELPER_STR(x)	if (!m_sz##x.empty() && !m_sz##x.starts_with("Error - "s) && !IsMemberInherited<std::string>(offsetof(BotProfile_t, m_sz##x)))	\
+#define SAVE_MEMBER_HELPER_STR(x)	if (AttribValid<std::string>(offsetof(BotProfile_t, m_sz##x)))	\
 										hFile << "\t" #x " = " << m_sz##x << std::endl
 
 		SAVE_MEMBER_HELPER_FLT(AttackDelay);
 		SAVE_MEMBER_HELPER_FLT(ReactionTime);
 
-		if (m_bitsDifficulty > 0 && !IsMemberInherited(offsetof(BotProfile_t, m_bitsDifficulty)))
+		if (AttribValid(offsetof(BotProfile_t, m_bitsDifficulty)))
 		{
 			bool bFirst = true;
 
@@ -1158,14 +1141,6 @@ struct BotProfile_t
 			}
 
 			hFile << std::endl;
-		}
-
-		if (m_szName == "Cole")
-		{
-			if (IsMemberInherited<int>(offsetof(BotProfile_t, m_iTeamwork)))
-			{
-				std::roundf(1);
-			}
 		}
 
 		SAVE_MEMBER_HELPER_INT(Aggression);
@@ -1281,15 +1256,174 @@ struct BotProfile_t
 		return false;	// If none of template value can be located, sure it is write by the user.
 	}
 
+	template<typename T = int>
+	bool AttribValid(size_t iOffset) const noexcept	// If this value is not the initialized value, then it is 'Valid'. But it still could be 'Insane'.
+	{
+		const T* pValue = reinterpret_cast<const T*>(size_t(this) + iOffset);
+
+		if constexpr (std::is_same_v<T, Weapons_t>)
+		{
+			return !pValue->empty();
+		}
+		else if constexpr (std::is_same_v<T, std::string>)	// Does my reference has no value for themself?
+		{
+			return !pValue->empty() && !pValue->starts_with("Error - "s);
+		}
+		else
+		{
+			if (iOffset == offsetof(BotProfile_t, m_bitsDifficulty))
+				return *pValue > 0;
+
+			return *pValue >= 0;
+		}
+	}
+
+	template<typename T = int>
+	bool AttribSanity(size_t iOffset, bool bSelfOnly = false) noexcept
+	{
+		BotProfile_t* pSource = nullptr;
+		const T* pValue = bSelfOnly ? GetSelf<T>(iOffset) : Get<T>(iOffset, &pSource);
+
+		switch (iOffset)
+		{
+		case offsetof(BotProfile_t, m_szName):
+		case offsetof(BotProfile_t, m_szSkin):
+		case offsetof(BotProfile_t, m_szVoiceBank):
+			if constexpr (std::is_same_v<T, std::string>)
+				return !pValue->empty() && !pValue->starts_with("Error - ") && pValue->find_first_of(" \f\n\r\t\v") == std::string::npos;
+
+		case offsetof(BotProfile_t, m_szTeam):
+			if constexpr (std::is_same_v<T, std::string>)
+				return !_stricmp(pValue->c_str(), "CT") || !_stricmp(pValue->c_str(), "T") || !_stricmp(pValue->c_str(), "ANY");
+
+		case offsetof(BotProfile_t, m_rgszWpnPreference):
+			if constexpr (std::is_same_v<T, Weapons_t>)
+				return m_rgszWpnPreference.empty()
+				|| (m_rgszWpnPreference.size() == 1 && !_stricmp(m_rgszWpnPreference.front().c_str(), "none"))
+				|| std::find_if(m_rgszWpnPreference.begin(), m_rgszWpnPreference.end(), [](const std::string& szWpn) { return !_stricmp(szWpn.c_str(), "none"); }) == m_rgszWpnPreference.end();
+
+		case offsetof(BotProfile_t, m_flAttackDelay):
+		case offsetof(BotProfile_t, m_flReactionTime):
+			if constexpr (std::is_arithmetic_v<T>)
+				return *pValue >= 0.0f;
+
+		case offsetof(BotProfile_t, m_bitsDifficulty):
+		case offsetof(BotProfile_t, m_iVoicePitch):
+			if constexpr (std::is_arithmetic_v<T>)
+				return *pValue > 0;
+
+		case offsetof(BotProfile_t, m_iAggression):
+		case offsetof(BotProfile_t, m_iSkill):
+		case offsetof(BotProfile_t, m_iTeamwork):
+			if constexpr (std::is_arithmetic_v<T>)
+				return *pValue >= 0 && *pValue <= 100;
+
+		case offsetof(BotProfile_t, m_iCost):
+			if constexpr (std::is_arithmetic_v<T>)
+				return *pValue >= 1 && *pValue <= 5;
+
+		default:
+			std::cout << "Error in calling BotProfile_t::AttribSanity() with reflection offset " << iOffset << ": Not a proper member.\n";
+			return false;
+		}
+	}
+
+	template<typename T = int>
+	T* Get(size_t iOffset, BotProfile_t** ppSource = nullptr) noexcept	// #HACKHACK undefined behavior involved.
+	{
+		if (ppSource)
+			*ppSource = this;
+
+		if (AttribValid<T>(iOffset))
+			return reinterpret_cast<T*>(size_t(this) + iOffset);
+
+		for (auto iter = m_rgszRefTemplates.rbegin(); iter != m_rgszRefTemplates.rend(); ++iter)	// From the last template to the first template.
+		{
+			BotProfile_t* pRef = &BotProfileMgr::m_Templates[*iter];
+
+			if (ppSource)
+				*ppSource = pRef;
+
+			if (pRef->AttribValid<T>(iOffset))
+				return reinterpret_cast<T*>(size_t(pRef) + iOffset);
+		}
+
+		if (ppSource)
+			*ppSource = &BotProfileMgr::m_Default;
+
+		// Don't forget 'Default' template. The last thing we can turn to.
+		return reinterpret_cast<T*>(size_t(&BotProfileMgr::m_Default) + iOffset);	// #POTENTIAL_BUG Unknow reason: there will be two set of address of m_Default. And m_szSkin contains different value within.
+	}
+
+	template<typename T = int>
+	T* GetSelf(size_t iOffset)
+	{
+		return reinterpret_cast<T*>(size_t(this) + iOffset);
+	}
+
+	const char* GetPreferedWpn(void) const noexcept
+	{
+		if (!m_rgszWpnPreference.empty())
+			return m_rgszWpnPreference.front().c_str();
+
+		for (auto iter = m_rgszRefTemplates.crbegin(); iter != m_rgszRefTemplates.crend(); ++iter)
+		{
+			auto& Template = BotProfileMgr::m_Templates[*iter];
+
+			if (!Template.m_rgszWpnPreference.empty())
+				return Template.m_rgszWpnPreference.front().c_str();
+		}
+
+		if (!BotProfileMgr::m_Default.m_rgszWpnPreference.empty())
+			return BotProfileMgr::m_Default.m_rgszWpnPreference.front().c_str();
+
+		return "none";
+	}
+
+	static const char* GetAttribIntro(size_t iOffset) noexcept
+	{
+		switch (iOffset)
+		{
+		case offsetof(BotProfile_t, m_szName):
+			return m_pszNameIntro;
+		case offsetof(BotProfile_t, m_rgszWpnPreference):
+			return m_pszWeaponPreferenceIntro;
+		case offsetof(BotProfile_t, m_flAttackDelay):
+			return m_pszAttackDelayIntro;
+		case offsetof(BotProfile_t, m_flReactionTime):
+			return m_pszReactionTimeIntro;
+		case offsetof(BotProfile_t, m_bitsDifficulty):
+			return m_pszDifficultyIntro;
+		case offsetof(BotProfile_t, m_iAggression):
+			return m_pszAggressionIntro;
+		case offsetof(BotProfile_t, m_iCost):
+			return m_pszCostIntro;
+		case offsetof(BotProfile_t, m_iSkill):
+			return m_pszSkillIntro;
+		case offsetof(BotProfile_t, m_iTeamwork):
+			return m_pszTeamworkIntro;
+		case offsetof(BotProfile_t, m_iVoicePitch):
+			return m_pszVoicePitchIntro;
+		case offsetof(BotProfile_t, m_szSkin):
+			return m_pszSkinIntro;
+		case offsetof(BotProfile_t, m_szTeam):
+			return m_pszTeamIntro;
+		case offsetof(BotProfile_t, m_szVoiceBank):
+			return m_pszVoicebankIntro;
+		default:
+			std::cout << "Error in calling BotProfile_t::GetAttribIntro() with reflection offset " << iOffset << ": Not a proper member.\n";
+			return nullptr;
+		}
+	}
+
 	void Reset(bool bDeleteReferences = true)
 	{
 		m_szName = "Error - No name"s;
 		m_rgszWpnPreference.clear();
 		m_bPrefersSilencer = false;
-		m_bExplicitlyNoneWpnPref = false;
 		m_flAttackDelay = -1;
 		m_flReactionTime = -1;
-		m_bitsDifficulty = -1;
+		m_bitsDifficulty = 0;
 		m_iAggression = -1;
 		m_iCost = -1;
 		m_iSkill = -1;
@@ -1305,6 +1439,7 @@ struct BotProfile_t
 	}
 
 	// Different from Task_t::SanityCheck(), this one doesnot modify original value.
+	// This is just a overall evaluation. The optional attributes will not sound the alarm.
 	const char* SanityCheck(void) const noexcept
 	{
 		if (m_szName.empty())
@@ -1357,10 +1492,7 @@ struct BotProfile_t
 			m_szName = Parent.m_szName;
 
 		if (!Parent.m_rgszWpnPreference.empty())
-		{
 			m_rgszWpnPreference = Parent.m_rgszWpnPreference;
-			m_bExplicitlyNoneWpnPref = false;
-		}
 
 		if (Parent.m_flAttackDelay >= 0)
 			m_flAttackDelay = Parent.m_flAttackDelay;
@@ -1405,10 +1537,7 @@ struct BotProfile_t
 			Reset(false);	// Will can inherit a shit if we have RefTemplate field cleared.
 
 		if (bCopyFromDefault)	// Copy from default first.
-		{
 			Inherit(BotProfileMgr::m_Default);
-			m_bExplicitlyNoneWpnPref = BotProfileMgr::m_Default.m_bExplicitlyNoneWpnPref;	// This should be copied standalone.
-		}
 
 		for (const auto& szInherit : m_rgszRefTemplates)
 		{
@@ -1426,8 +1555,7 @@ struct BotProfile_t
 
 	Name_t m_szName{ "Error - No name"s };	// Not in attrib
 	Weapons_t m_rgszWpnPreference{};
-	bool m_bPrefersSilencer{ false };	// Not editable.
-	bool m_bExplicitlyNoneWpnPref{ false };	// Share with WeaponPreference, no inheritance
+	bool m_bPrefersSilencer{ false };	// Not editable, not an attribute.
 	float m_flAttackDelay{ -1 };
 	float m_flReactionTime{ -1 };
 	int m_bitsDifficulty{ 0 };
@@ -1440,6 +1568,37 @@ struct BotProfile_t
 	std::string m_szSkin{ "" };
 	std::string m_szTeam{ "" };
 	std::string m_szVoiceBank{ "" };
+
+	static inline constexpr const char* m_pszNameIntro = "The name of this character.\nYou may not include any non-ASCI character or spaces in here.";
+	static inline constexpr const char* m_pszWeaponPreferenceIntro = "Value: \"none\" or a buy alias such as \"m4a1\"\nDescription: Defines the bot's weapon preference.A bot can have many WeaponPreference\ndefinitions in a row, specifying a prioritized list(earlier ones are favorite over later ones) of\nweapons the bot will try to buy or pick up from the ground.A preference of “none” will cause\nthe bot to buy a random weapon.";
+	static inline constexpr const char* m_pszAttackDelayIntro = "After a bot has become aware of an enemy,\nthis duration must also elapse before it will begin firing upon its victim.";
+	static inline constexpr const char* m_pszReactionTimeIntro = "Determines the reaction time of a bot. A bot's \"reaction time\" is the delay between when a visual\nor audio event occurs and the bot becomes \"aware\" of it, and can begin to act upon it.\nThis simulates the time it takes a human to process incoming stimuli and become\"conscious\" of it.";
+	static inline constexpr const char* m_pszDifficultyIntro = "Defines the difficulty categories where this bot is used.";
+	static inline constexpr const char* m_pszAggressionIntro = "Determines how aggressively a bot behaves. High aggression bots pay less attention to \"danger\"\n(ie: where teammates have died previously), are more likely to rush, and less likely to retreat.\nLow aggression bots are just the opposite.";
+	static inline constexpr const char* m_pszCostIntro = "The point you need to spend in order to hire it.";
+	static inline constexpr const char* m_pszSkillIntro = "Defines the overall \"skill\" of the bot. Low skill bots have terrible aim and don’t look around very\nmuch, whereas high skill bots can have extremely good aim, try to check as many corners\nand hiding spots as they can, and know subtle things like using the knife to run faster, switching\nto the pistol when out of ammo, and so on.";
+	static inline constexpr const char* m_pszTeamworkIntro = "Defines how cooperative and \"team oriented\" the bot is. High teamwork bots are more likely\nto obey radio commands and stay with their teammates. Low teamwork bots tend to \"go rogue\"\nand do their own thing.";
+	static inline constexpr const char* m_pszVoicePitchIntro = "Defines the pitch shift value this bot will use for its \"chatter\". Lower values create lower pitched voices.";
+	static inline constexpr const char* m_pszSkinIntro = "Value: 0-5 or <skin name>\nDescription: Defines which “skin” to select when the bot joins the game.Values 1 through 5 map\nto the associated skins on the player menu in game.A value of 0 selects a skin at random.If a\n<skin name> is given, the skin must have been previously defined using a Skin data block.\nSkin data blocks can refer to custom skins other than the default CZ skins.Custom skins should be\nplaced in czero\\models\\player\\<skin name>\\<skin name>.mdl.";
+	static inline constexpr const char* m_pszTeamIntro = "Value: [CT] [T] [ANY]\nDescription: The team to which this character prefer to join.\n";
+	static inline constexpr const char* m_pszVoicebankIntro = "Use a customized voicebank instead of default \"BotChatter.db\".";
+};
+
+namespace BPReflection
+{
+	inline constexpr auto NAME = offsetof(BotProfile_t, m_szName);
+	inline constexpr auto WEAPON_PREFERENCE = offsetof(BotProfile_t, m_rgszWpnPreference);
+	inline constexpr auto ATTACK_DELAY = offsetof(BotProfile_t, m_flAttackDelay);
+	inline constexpr auto REACTION_TIME = offsetof(BotProfile_t, m_flReactionTime);
+	inline constexpr auto DIFFICULTY = offsetof(BotProfile_t, m_bitsDifficulty);
+	inline constexpr auto AGGRESSION = offsetof(BotProfile_t, m_iAggression);
+	inline constexpr auto COST = offsetof(BotProfile_t, m_iCost);
+	inline constexpr auto SKILL = offsetof(BotProfile_t, m_iSkill);
+	inline constexpr auto TEAMWORK = offsetof(BotProfile_t, m_iTeamwork);
+	inline constexpr auto VOICEPITCH = offsetof(BotProfile_t, m_iVoicePitch);
+	inline constexpr auto SKIN = offsetof(BotProfile_t, m_szSkin);
+	inline constexpr auto TEAM = offsetof(BotProfile_t, m_szTeam);
+	inline constexpr auto VOICEBANK = offsetof(BotProfile_t, m_szVoiceBank);
 };
 
 
@@ -1490,7 +1649,47 @@ namespace BotProfileMgr
 		m_Skins.clear();
 	}
 
-	bool Parse(const fs::path& hPath)	// Assuming this file IS ACTUALLY exists.
+	void RemoveNoneInWpnPref(Weapons_t* p) noexcept	// #UNDONE_LONG_TERM move this to .hpp header.
+	{
+		p->erase(
+			std::remove_if(
+				p->begin(),
+				p->end(),
+				[](const std::string& szWpn) { return !_stricmp(szWpn.c_str(), "none"); }
+			),
+			p->end());
+	}
+
+	void GenerateSkinsFromProfiles(void) noexcept
+	{
+		if (!UTIL_GetStringType(m_Default.m_szSkin.c_str()) && m_Default.AttribSanity<std::string>(BPReflection::SKIN, true))	// Ignore heritage duing the process.
+		{
+			if (!m_Skins.contains(m_Default.m_szSkin))
+				m_Skins[m_Default.m_szSkin] = m_Default.m_szSkin;
+		}
+
+		for (auto& [szName, Template] : m_Templates)
+		{
+			if (!UTIL_GetStringType(Template.m_szSkin.c_str()) && Template.AttribSanity<std::string>(BPReflection::SKIN, true))
+			{
+				if (!m_Skins.contains(Template.m_szSkin))
+					m_Skins[Template.m_szSkin] = Template.m_szSkin;
+			}
+		}
+
+		for (auto& Character : m_Profiles)
+		{
+			if (Character.AttribSanity<std::string>(BPReflection::SKIN, true))
+			{
+				auto& szSkin = *Character.Get<std::string>(BPReflection::SKIN);
+
+				if (!UTIL_GetStringType(szSkin.c_str()) && !m_Skins.contains(szSkin))
+					m_Skins[szSkin] = szSkin;
+			}
+		}
+	}
+
+	bool ParseWithInheritance(const fs::path& hPath)	// Assuming this file IS ACTUALLY exists.
 	{
 		Clear();
 
@@ -1725,7 +1924,7 @@ namespace BotProfileMgr
 					if (!_stricmp(iter->c_str(), "none"))
 					{
 						pProfile->m_rgszWpnPreference.clear();
-						pProfile->m_bExplicitlyNoneWpnPref = true;
+						pProfile->m_rgszWpnPreference.emplace_back("none");
 						continue;
 					}
 
@@ -1737,9 +1936,15 @@ namespace BotProfileMgr
 
 						if (!_stricmp(iter->c_str(), g_rgszWeaponNames[i]))
 						{
+							pProfile->m_rgszWpnPreference.erase(
+								std::remove_if(pProfile->m_rgszWpnPreference.begin(),
+									pProfile->m_rgszWpnPreference.end(),
+									[](const std::string& szWpn) { return !_stricmp(szWpn.c_str(), "none"); }
+								),
+								pProfile->m_rgszWpnPreference.end());
+
 							bWeaponNameParsed = true;
 							pProfile->m_rgszWpnPreference.emplace_back(g_rgszWeaponNames[i]);	// Invisible std::tolower().
-							pProfile->m_bExplicitlyNoneWpnPref = false;
 							break;
 						}
 					}
@@ -1805,6 +2010,323 @@ namespace BotProfileMgr
 		return true;
 	}
 
+	bool Parse(const fs::path& hPath) noexcept
+	{
+		Clear();
+
+		FILE* f = nullptr;
+		fopen_s(&f, hPath.string().c_str(), "rb");
+		fseek(f, 0, SEEK_END);
+
+		auto flen = ftell(f);
+		auto buf = (BYTE*)malloc(flen + 1);	// #MEM_ALLOC
+		fseek(f, 0, SEEK_SET);
+		fread_s(buf, flen + 1, flen, 1, f);
+		buf[flen] = 0;
+
+		std::list<std::string> Tokens;
+		char* c = (char*)&buf[0];
+		while (c != (char*)&buf[flen + 1] && *c != '\0')
+		{
+		LAB_SKIP_COMMENT:;
+			if (c[0] == '/' && c[1] == '/')
+			{
+				char* p = c;
+				while (true)
+				{
+					p++;
+
+					if (*p == '\n')
+						break;
+				}
+
+				p++;	// Skip '\n' symbol.
+
+				memmove(c, p, strlen(p) + 1);	// including '\0' character.
+				goto LAB_SKIP_COMMENT;
+			}
+
+			char* p = c;
+			while (true)
+			{
+				switch (*p)
+				{
+				case ' ':
+				case '\f':
+				case '\n':
+				case '\r':
+				case '\t':
+				case '\v':
+				case '\0':	// EOF
+					*p = '\0';
+
+					if (c != p)
+						Tokens.emplace_back(c);
+
+					c = ++p;
+					goto LAB_BACK_TO_MAIN_LOOP;
+
+				default:
+					p++;
+					break;
+				}
+
+				if (p == (char*)&buf[flen + 1])
+				{
+					std::cout << "Not a '\\0' terminated buffer.\n";
+					return false;
+				}
+			}
+
+		LAB_BACK_TO_MAIN_LOOP:;
+		}
+
+		fclose(f);
+		free(buf);	// #MEM_FREED
+		buf = nullptr;
+		c = nullptr;
+
+		for (auto iter = Tokens.begin(); iter != Tokens.end(); /* Do nothing */)
+		{
+			bool bIsDefault, bIsTemplate, bIsCustomSkin;
+			BotProfile_t* pProfile = nullptr;
+			std::string szTempToken;
+
+			if (iter->starts_with("//"))
+				goto LAB_ERASE_AND_NEXT;
+
+			bIsDefault = !_stricmp(iter->c_str(), "Default");
+			bIsTemplate = !_stricmp(iter->c_str(), "Template");
+			bIsCustomSkin = !_stricmp(iter->c_str(), "Skin");
+
+			if (bIsCustomSkin)
+			{
+				iter++;
+				if (iter == Tokens.end())
+				{
+					std::cout << "Error parsing " << hPath.string().c_str() << " - expected skin name\n";
+					return false;
+				}
+
+				// Save Skin name
+				szTempToken = *iter;
+
+				iter++;
+				if (iter == Tokens.end() || *iter != "Model"s)
+				{
+					std::cout << "Error parsing " << hPath.string().c_str() << " - expected 'Model'\n";
+					return false;
+				}
+
+				iter++;
+				if (iter == Tokens.end() || *iter != "="s)
+				{
+					std::cout << "Error parsing " << hPath.string().c_str() << " - expected '='\n";
+					return false;
+				}
+
+				iter++;
+				if (iter == Tokens.end())
+				{
+					std::cout << "Error parsing " << hPath.string().c_str() << " - expected a model name\n";
+					return false;
+				}
+
+				// Save skin path
+				m_Skins[szTempToken] = *iter;
+
+				iter++;
+				if (iter == Tokens.end() || *iter != "End"s)
+				{
+					std::cout << "Error parsing " << hPath.string().c_str() << " - expected a model name\n";
+					return false;
+				}
+
+				goto LAB_REGULAR_CONTINUE;
+			}
+
+			// Initialize default.
+			if (bIsDefault)
+			{
+				pProfile = &m_Default;
+				pProfile->m_szName = "Default"s;
+			}
+			// Initialize template
+			else if (bIsTemplate)
+			{
+				++iter;
+				if (iter == Tokens.end())
+				{
+					std::cout << "Error parsing " << hPath.string().c_str() << " - expected name of template but 'EOF' met.\n";
+					return false;
+				}
+
+				pProfile = &m_Templates[*iter];
+				pProfile->m_szName = *iter;
+				goto LAB_READ_ATTRIB;
+			}
+			// Initialize normal character.
+			else
+			{
+				m_Profiles.push_back(BotProfile_t{});
+				pProfile = &m_Profiles.back();
+			}
+
+			// The start of a character - templates. We only read what template it use, no inherit involved.
+			if (!bIsTemplate && !bIsDefault)
+				UTIL_Split(*iter, pProfile->m_rgszRefTemplates, "+"s);
+
+			// get name of this profile
+			if (!bIsDefault)
+			{
+				++iter;
+				if (iter == Tokens.end())
+				{
+					std::cout << "Error parsing " << hPath.string().c_str() << " - expected name of character but 'EOF' met.\n";
+					return false;
+				}
+
+				pProfile->m_szName = *iter;
+				pProfile->m_bPrefersSilencer = static_cast<bool>(pProfile->m_szName[0] % 2);
+			}
+
+		LAB_READ_ATTRIB:;
+			// read attributes for this profile
+			while (true)
+			{
+				iter++;
+				if (iter == Tokens.end())
+				{
+					std::cout << "Error parsing " << hPath.string().c_str() << " - expected 'End' but 'EOF' met.\n";
+					return false;
+				}
+
+				szTempToken = *iter;
+
+				// check for End delimiter
+				if (szTempToken == "End"s)
+					break;
+
+				iter++;
+				if (iter == Tokens.end() || *iter != "="s)
+				{
+					std::cout << "Error parsing " << hPath.string().c_str() << " - expected '='\n";
+					return false;
+				}
+
+				iter++;
+				if (iter == Tokens.end())
+				{
+					std::cout << "Error parsing " << hPath.string().c_str() << " - expected attribute value of " << std::quoted(szTempToken) << '\n';
+					return false;
+				}
+
+				if (!_stricmp(szTempToken.c_str(), "Aggression"))
+					pProfile->m_iAggression = std::stoi(*iter);
+
+				else if (!_stricmp(szTempToken.c_str(), "Skill"))
+					pProfile->m_iSkill = std::stoi(*iter);
+
+				else if (!_stricmp(szTempToken.c_str(), "Skin"))
+					pProfile->m_szSkin = *iter;
+
+				else if (!_stricmp(szTempToken.c_str(), "Teamwork"))
+					pProfile->m_iTeamwork = std::stoi(*iter);
+
+				else if (!_stricmp(szTempToken.c_str(), "Cost"))
+					pProfile->m_iCost = std::stoi(*iter);
+
+				else if (!_stricmp(szTempToken.c_str(), "VoicePitch"))
+					pProfile->m_iVoicePitch = std::stoi(*iter);
+
+				else if (!_stricmp(szTempToken.c_str(), "VoiceBank"))
+					pProfile->m_szVoiceBank = *iter;
+
+				else if (!_stricmp(szTempToken.c_str(), "WeaponPreference"))
+				{
+					if (!_stricmp(iter->c_str(), "none"))
+					{
+						pProfile->m_rgszWpnPreference.clear();
+						pProfile->m_rgszWpnPreference.emplace_back("none");
+						continue;
+					}
+
+					bool bWeaponNameParsed = false;
+					for (size_t i = 0; i < _countof(g_rgszWeaponNames); i++)
+					{
+						if (!g_rgbIsBuyCommand[i])	// Skip those non-buycommand text.
+							continue;
+
+						if (!_stricmp(iter->c_str(), g_rgszWeaponNames[i]))
+						{
+							bWeaponNameParsed = true;
+							BotProfileMgr::RemoveNoneInWpnPref(&pProfile->m_rgszWpnPreference);
+							pProfile->m_rgszWpnPreference.emplace_back(g_rgszWeaponNames[i]);	// Invisible std::tolower().
+							break;
+						}
+					}
+
+					if (!bWeaponNameParsed)
+						std::cout << "Unknow weapon name " << std::quoted(*iter) << " met during parsing " << hPath << std::endl;
+
+					// #UNDONE_LONG_TERM Ideally when template weapon and its explictly prefered weapon confilx, one should pick its own prefered weapon. But this is not the case in original CZ.
+					// Or we can implement that by itInsertpoint = g_rgszWeaponNames.insert(itInsertpoint, weaponId);
+				}
+
+				else if (!_stricmp(szTempToken.c_str(), "ReactionTime"))
+					pProfile->m_flReactionTime = std::stof(*iter);
+
+				else if (!_stricmp(szTempToken.c_str(), "AttackDelay"))
+					pProfile->m_flAttackDelay = std::stof(*iter);
+
+				else if (!_stricmp(szTempToken.c_str(), "Difficulty"))
+				{
+					std::list<std::string> DifficultyList;
+					UTIL_Split(*iter, DifficultyList, "+"s);
+
+					for (auto& Difficulty : DifficultyList)
+					{
+						for (size_t i = 0; i < _countof(g_rgszDifficultyNames); i++)
+						{
+							if (!_stricmp(Difficulty.c_str(), g_rgszDifficultyNames[i]))
+							{
+								pProfile->m_bitsDifficulty |= (1 << i);
+								break;
+							}
+						}
+					}
+				}
+
+				else if (!_stricmp(szTempToken.c_str(), "Team"))
+					pProfile->m_szTeam = *iter;
+
+				else if (!_stricmp(szTempToken.c_str(), "Aggression"))
+					pProfile->m_iAggression = std::stoi(*iter);
+
+				else if (!_stricmp(szTempToken.c_str(), "Aggression"))
+					pProfile->m_iAggression = std::stoi(*iter);
+
+				else if (!_stricmp(szTempToken.c_str(), "Aggression"))
+					pProfile->m_iAggression = std::stoi(*iter);
+
+				else if (!_stricmp(szTempToken.c_str(), "Aggression"))
+					pProfile->m_iAggression = std::stoi(*iter);
+
+				else
+					std::cout << "Error parsing " << hPath.string().c_str() << " - unknown attribute " << std::quoted(szTempToken) << " with value " << std::quoted(*iter) << '\n';
+			}
+
+		LAB_REGULAR_CONTINUE:;
+			++iter;
+			continue;
+
+		LAB_ERASE_AND_NEXT:;
+			iter = Tokens.erase(iter);
+		}
+
+		return true;
+	}
+
 	bool Save(const fs::path& hPath)
 	{
 		std::ofstream hFile(hPath, std::ios::out);
@@ -1823,6 +2345,7 @@ namespace BotProfileMgr
 		hFile << "End\n" << std::endl;
 
 		// Skins
+		GenerateSkinsFromProfiles();
 		hFile << m_szSeparator << m_szSkinTitle << m_szSeparator << std::endl;
 		for (const auto& Skin : m_Skins)
 		{
@@ -1833,7 +2356,7 @@ namespace BotProfileMgr
 
 		// Templates
 		hFile << m_szSeparator << m_szTemplateTitle << m_szSeparator << std::endl;
-		for (const auto& Template : m_Templates)
+		for (auto& Template : m_Templates)
 		{
 			hFile << "Template " << Template.first << std::endl;
 			Template.second.SaveAttrib(hFile);
@@ -1842,7 +2365,7 @@ namespace BotProfileMgr
 
 		// Characters
 		hFile << m_szSeparator << m_szCharacterTitle << m_szSeparator << std::endl;
-		for (const auto& Character : m_Profiles)
+		for (auto& Character : m_Profiles)
 		{
 			bool bFirst = true;
 			for (const auto& szRef : Character.m_rgszRefTemplates)
@@ -1880,103 +2403,6 @@ namespace BotProfileMgr
 			szName.erase(szName.find(".tga"));
 			ImageLoader::Add(hEntry.path(), &m_Thumbnails[szName]);
 		}
-	}
-
-	void ModifyDefault(BotProfile_t& NewDefault) noexcept
-	{
-		for (auto& Character : m_Profiles)
-		{
-			// Why check the overall heritage status first, and then check heritage from Default again specifically?
-			// Consider this:
-			// Default: Teamwork = 75
-			// Template1: Teamwork = 50
-			// Character to whom Template1 was applied: Teamwork = 75
-			// In this case, the use explicitly state that this BOT has a Teamwork valued 75, better than other Characters Template1 applied to.
-			// There were no connection between the 75 from Character table and the 75 from Default table.
-			// Therefore, it makes no sense to make the Teamwork value from Character table change with the Default table.
-
-#define CHECK_AND_SYNC(m)	if (Character.IsMemberInherited<decltype(BotProfile_t::m)>(offsetof(BotProfile_t, m)) && Character.IsMemberDefault<decltype(BotProfile_t::m)>(offsetof(BotProfile_t, m)))	\
-								Character.m = NewDefault.m
-
-			// Should never sync with name.
-
-			CHECK_AND_SYNC(m_flAttackDelay);
-			CHECK_AND_SYNC(m_flReactionTime);
-			CHECK_AND_SYNC(m_bitsDifficulty);
-			CHECK_AND_SYNC(m_iAggression);
-			CHECK_AND_SYNC(m_iCost);
-			CHECK_AND_SYNC(m_iSkill);
-			CHECK_AND_SYNC(m_iTeamwork);
-			CHECK_AND_SYNC(m_iVoicePitch);
-			CHECK_AND_SYNC(m_szSkin);
-			CHECK_AND_SYNC(m_szTeam);
-			CHECK_AND_SYNC(m_szVoiceBank);
-
-			if (Character.m_rgszWpnPreference == m_Default.m_rgszWpnPreference && Character.m_bExplicitlyNoneWpnPref == m_Default.m_bExplicitlyNoneWpnPref)
-			{
-				Character.m_rgszWpnPreference = NewDefault.m_rgszWpnPreference;
-				Character.m_bExplicitlyNoneWpnPref = NewDefault.m_bExplicitlyNoneWpnPref;
-			}
-#undef CHECK_AND_SYNC
-		}
-
-		m_Default = std::move(NewDefault);
-	}
-
-	void ModifyTemplate(const Name_t& szTemplateName, BotProfile_t& NewTemplate) noexcept
-	{
-		assert(m_Templates.contains(szTemplateName));
-
-		for (auto& Character : m_Profiles)
-		{
-			bool bUsingThisTemplate = false;
-			for (const auto& szTemplate : Character.m_rgszRefTemplates)
-			{
-				if (szTemplate == szTemplateName)
-				{
-					bUsingThisTemplate = true;
-					break;
-				}
-			}
-
-			if (!bUsingThisTemplate)
-				continue;
-
-			// Why check the overall heritage status first, and then check heritage from Default again specifically?
-			// Consider this:
-			// Default: Teamwork = 75
-			// Template1: Teamwork = 50
-			// Character to whom Template1 was applied: Teamwork = 75
-			// In this case, the use explicitly state that this BOT has a Teamwork valued 75, better than other Characters Template1 applied to.
-			// There were no connection between the 75 from Character table and the 75 from Default table.
-			// Therefore, it makes no sense to make the Teamwork value from Character table change with the Default table.
-
-#define CHECK_AND_SYNC(m)	if (Character.IsMemberInherited<decltype(BotProfile_t::m)>(offsetof(BotProfile_t, m)) && Character.IsMemberTemplated<decltype(BotProfile_t::m)>(offsetof(BotProfile_t, m)))	\
-								Character.m = NewTemplate.m
-
-			// Should never sync with name.
-
-			CHECK_AND_SYNC(m_flAttackDelay);
-			CHECK_AND_SYNC(m_flReactionTime);
-			CHECK_AND_SYNC(m_bitsDifficulty);
-			CHECK_AND_SYNC(m_iAggression);
-			CHECK_AND_SYNC(m_iCost);
-			CHECK_AND_SYNC(m_iSkill);
-			CHECK_AND_SYNC(m_iTeamwork);
-			CHECK_AND_SYNC(m_iVoicePitch);
-			CHECK_AND_SYNC(m_szSkin);
-			CHECK_AND_SYNC(m_szTeam);
-			CHECK_AND_SYNC(m_szVoiceBank);
-
-			//if (Character.m_rgszWpnPreference == m_Default.m_rgszWpnPreference && Character.m_bExplicitlyNoneWpnPref == m_Default.m_bExplicitlyNoneWpnPref)
-			//{
-			//	Character.m_rgszWpnPreference = NewDefault.m_rgszWpnPreference;
-			//	Character.m_bExplicitlyNoneWpnPref = NewDefault.m_bExplicitlyNoneWpnPref;
-			//}
-#undef CHECK_AND_SYNC
-		}
-
-		//m_Default = std::move(NewDefault);
 	}
 };
 
@@ -2229,7 +2655,7 @@ void ListKeyValue(NewKeyValues* pkv)
 	ImGui::TreePop();
 }
 
-const auto fnWeaponMenu = []<typename... Tys> requires all_the_same<Tys...>(const Tys&... rgbMask) -> const char*
+const auto fnWeaponMenu = []<typename... Tys> requires all_same_as<WeaponSelMask_t, Tys...>(const Tys&... rgbMask) -> const char*
 {
 	const char* pszResult = nullptr;
 	bool bEmptyCategory = true;
@@ -2273,6 +2699,27 @@ const auto fnWeaponMenu = []<typename... Tys> requires all_the_same<Tys...>(cons
 
 	return pszResult;
 };
+
+void HelpMarker(const char* desc, ...)
+{
+	va_list argptr{};
+	static constexpr size_t BUF_LEN = 2048;
+	static char rgsz[BUF_LEN] = "\0";
+
+	va_start(argptr, desc);
+	_vsnprintf_s(rgsz, BUF_LEN, desc, argptr);
+	va_end(argptr);
+
+	ImGui::TextDisabled("(?)");
+	if (ImGui::IsItemHovered())
+	{
+		ImGui::BeginTooltip();
+		ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
+		ImGui::TextUnformatted(rgsz);
+		ImGui::PopTextWrapPos();
+		ImGui::EndTooltip();
+	}
+}
 
 void MainMenuBar(void)
 {
@@ -3128,118 +3575,399 @@ void BotsWindow(void)
 				// Have to use the name stored in iterator. Otherwise things will get wired if user edits its name.
 				if (ImGui::BeginPopupModal(UTIL_VarArgs("%s##BotEditor", itChar->m_szName.c_str()), nullptr, ImGuiWindowFlags_AlwaysAutoResize))
 				{
-					ImGui::InputText("Character Name", &BotCopy.m_szName);
-					ImGui::CheckboxFlags(g_rgszDifficultyNames[0], &BotCopy.m_bitsDifficulty, (1 << Difficulty_e::EASY)); ImGui::SameLine();
-					ImGui::CheckboxFlags(g_rgszDifficultyNames[1], &BotCopy.m_bitsDifficulty, (1 << Difficulty_e::NORMAL)); ImGui::SameLine();
-					ImGui::CheckboxFlags(g_rgszDifficultyNames[2], &BotCopy.m_bitsDifficulty, (1 << Difficulty_e::HARD)); ImGui::SameLine();
-					ImGui::CheckboxFlags(g_rgszDifficultyNames[3], &BotCopy.m_bitsDifficulty, (1 << Difficulty_e::EXPERT));
-#pragma region Weapon preference selection
-
-					// Generate a mask for current character.
-					rgbCanWpnEnlist.fill(true);
-					for (int i = 0; i < _countof(g_rgszWeaponNames); ++i)
+					static const auto fnArithmeticAttrib = []<typename T> requires(std::is_arithmetic_v<T>) (size_t iOffset, const char* pszAttribName, const std::pair<T, T>&iSteps)
 					{
-						for (const auto& szWeapon : BotCopy.m_rgszWpnPreference)
+						BotProfile_t* pSource = nullptr;
+						T* pValue = BotCopy.Get<T>(iOffset, &pSource);
+						bool			bValueSanity = BotCopy.AttribSanity<T>(iOffset);
+						bool			bValueValid = BotCopy.AttribValid<T>(iOffset);
+						std::string		szHintText = BotCopy.GetAttribIntro(iOffset);
+
+						// Red background for insane value.
+						if (!bValueSanity)
+							ImGui::PushStyleColor(ImGuiCol_FrameBg, (ImVec4)ImColor::HSV(0.98f, 0.2f, 1));
+
+						// Gray for invalid/template controlled value.
+						if (!bValueValid)
 						{
-							if (szWeapon == g_rgszWeaponNames[i])
+							ImGui::BeginDisabled();
+							if constexpr (std::integral<T>)
+								ImGui::InputInt(pszAttribName, pValue, iSteps.first, iSteps.second, ImGuiInputTextFlags_CharsDecimal);
+							else if constexpr (std::floating_point<T>)
+								ImGui::InputFloat(pszAttribName, pValue, iSteps.first, iSteps.second, "%.2f", ImGuiInputTextFlags_CharsDecimal);
+							ImGui::EndDisabled();
+
+							if (pSource == &BotProfileMgr::m_Default)
+								szHintText += "\n\nYou can't modify because this value was inherited from the Default.\nRight-click to introduce this attribute into character database.";
+							else
+								szHintText += "\n\nYou can't modify because this value was inherited from template \"" + pSource->m_szName + "\".\nRight-click to introduce this attribute into character database.";
+						}
+						else
+						{
+							if constexpr (std::integral<T>)
+								ImGui::InputInt(pszAttribName, pValue, iSteps.first, iSteps.second, ImGuiInputTextFlags_CharsDecimal);
+							else if constexpr (std::floating_point<T>)
+								ImGui::InputFloat(pszAttribName, pValue, iSteps.first, iSteps.second, "%.2f", ImGuiInputTextFlags_CharsDecimal);
+						}
+
+						if (!bValueSanity)
+						{
+							ImGui::PopStyleColor();
+							szHintText += "\n\nThis is currently being identified as inproper.\nConsider having it corrected.";
+						}
+
+						// Do the hint outside the style change.
+						ImGui::SameLine();
+						ImGui::TextDisabled("(?)");
+						if (ImGui::IsItemHovered())
+						{
+							ImGui::BeginTooltip();
+							ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
+							ImGui::TextUnformatted(szHintText.c_str());
+							ImGui::PopTextWrapPos();
+							ImGui::EndTooltip();
+						}
+
+						// Right-click to introduce.
+						if (!bValueValid && ImGui::BeginPopupContextItem(UTIL_VarArgs("%s##AddValueOfThisAttrib", pszAttribName)))
+						{
+							if (ImGui::MenuItem(UTIL_VarArgs("Introduce \"%s\".", pszAttribName)))
+								*BotCopy.GetSelf<T>(iOffset) = *pValue;
+							ImGui::EndPopup();
+						}
+					};
+					static const auto fnBitsAttrib = [](void)	// Specialize for m_bitsDifficulty
+					{
+						BotProfile_t* pSource = nullptr;
+						int* pValue = BotCopy.Get<int>(BPReflection::DIFFICULTY, &pSource);
+						bool			bValueValid = BotCopy.AttribValid<int>(BPReflection::DIFFICULTY);
+						std::string		szHintText = BotProfile_t::m_pszDifficultyIntro;
+
+						// In this case, forget about the silly red box, just make the value sense.
+						if (!BotCopy.AttribSanity<int>(BPReflection::DIFFICULTY))
+							*pValue = 0;
+
+						// Gray for invalid/template controlled value.
+						if (!bValueValid)
+						{
+							ImGui::BeginDisabled();
+							ImGui::CheckboxFlags(g_rgszDifficultyNames[0], pValue, (1 << Difficulty_e::EASY)); ImGui::SameLine();
+							ImGui::CheckboxFlags(g_rgszDifficultyNames[1], pValue, (1 << Difficulty_e::NORMAL)); ImGui::SameLine();
+							ImGui::CheckboxFlags(g_rgszDifficultyNames[2], pValue, (1 << Difficulty_e::HARD)); ImGui::SameLine();
+							ImGui::CheckboxFlags(g_rgszDifficultyNames[3], pValue, (1 << Difficulty_e::EXPERT));
+							ImGui::EndDisabled();
+
+							if (pSource == &BotProfileMgr::m_Default)
+								szHintText += "\n\nYou can't modify because this value was inherited from the Default.\nRight-click to introduce this attribute into character database.";
+							else
+								szHintText += "\n\nYou can't modify because this value was inherited from template \"" + pSource->m_szName + "\".\nRight-click to introduce this attribute into character database.";
+						}
+						else
+						{
+							ImGui::CheckboxFlags(g_rgszDifficultyNames[0], pValue, (1 << Difficulty_e::EASY)); ImGui::SameLine();
+							ImGui::CheckboxFlags(g_rgszDifficultyNames[1], pValue, (1 << Difficulty_e::NORMAL)); ImGui::SameLine();
+							ImGui::CheckboxFlags(g_rgszDifficultyNames[2], pValue, (1 << Difficulty_e::HARD)); ImGui::SameLine();
+							ImGui::CheckboxFlags(g_rgszDifficultyNames[3], pValue, (1 << Difficulty_e::EXPERT));
+						}
+
+						// Do the hint outside the style change.
+						ImGui::SameLine();
+						ImGui::TextDisabled("(?)");
+						if (ImGui::IsItemHovered())
+						{
+							ImGui::BeginTooltip();
+							ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
+							ImGui::TextUnformatted(szHintText.c_str());
+							ImGui::PopTextWrapPos();
+							ImGui::EndTooltip();
+						}
+
+						// Right-click to introduce.
+						if (!bValueValid && ImGui::BeginPopupContextItem("Difficulty##AddValueOfThisAttrib"))
+						{
+							if (ImGui::MenuItem("Introduce \"Difficulty\"."))
+								BotCopy.m_bitsDifficulty = *pValue;
+							ImGui::EndPopup();
+						}
+					};
+					static const auto fnStringAttrib = [](size_t iOffset, const char* pszAttribName)
+					{
+						BotProfile_t* pSource = nullptr;
+						std::string* pValue = BotCopy.Get<std::string>(iOffset, &pSource);
+						bool			bValueSanity = BotCopy.AttribSanity<std::string>(iOffset);
+						bool			bValueValid = BotCopy.AttribValid<std::string>(iOffset);
+						std::string		szHintText = BotCopy.GetAttribIntro(iOffset);
+
+						// Red background for insane value.
+						if (!bValueSanity)
+							ImGui::PushStyleColor(ImGuiCol_FrameBg, (ImVec4)ImColor::HSV(0.98f, 0.2f, 1));
+
+						// Gray for invalid/template controlled value.
+						if (!bValueValid)
+						{
+							ImGui::BeginDisabled();
+							ImGui::InputText(pszAttribName, pValue, ImGuiInputTextFlags_CharsNoBlank);
+							ImGui::EndDisabled();
+
+							if (pSource == &BotProfileMgr::m_Default)
+								szHintText += "\n\nYou can't modify because this value was inherited from the Default.\nRight-click to introduce this attribute into character database.";
+							else
+								szHintText += "\n\nYou can't modify because this value was inherited from template \"" + pSource->m_szName + "\".\nRight-click to introduce this attribute into character database.";
+						}
+						else
+							ImGui::InputText(pszAttribName, pValue, ImGuiInputTextFlags_CharsNoBlank);
+
+						if (!bValueSanity)
+						{
+							ImGui::PopStyleColor();
+							szHintText += "\n\nThis is currently being identified as inproper.\nConsider having it corrected.";
+						}
+
+						// Do the hint outside the style change.
+						ImGui::SameLine();
+						ImGui::TextDisabled("(?)");
+						if (ImGui::IsItemHovered())
+						{
+							ImGui::BeginTooltip();
+							ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
+							ImGui::TextUnformatted(szHintText.c_str());
+							ImGui::PopTextWrapPos();
+							ImGui::EndTooltip();
+						}
+
+						// Right-click to introduce.
+						if (!bValueValid && ImGui::BeginPopupContextItem(UTIL_VarArgs("%s##AddValueOfThisAttrib", pszAttribName)))
+						{
+							if (ImGui::MenuItem(UTIL_VarArgs("Introduce \"%s\".", pszAttribName)))
+								*BotCopy.GetSelf<std::string>(iOffset) = *pValue;
+							ImGui::EndPopup();
+						}
+					};
+					static const auto fnComboAttrib = [](void)	// Specialized for m_szTeam.
+					{
+						BotProfile_t* pSource = nullptr;
+						std::string* pValue = BotCopy.Get<std::string>(BPReflection::TEAM, &pSource);
+						bool			bValueValid = BotCopy.AttribValid<std::string>(BPReflection::TEAM);
+						std::string		szHintText = BotCopy.GetAttribIntro(BPReflection::TEAM);
+
+						// Gray for invalid/template controlled value.
+						if (!bValueValid)
+						{
+							ImGui::BeginDisabled();
+							ImGui::InputText("Preferred Team", pValue, ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_CharsUppercase);
+							ImGui::EndDisabled();
+
+							if (pSource == &BotProfileMgr::m_Default)
+								szHintText += "\n\nYou can't modify because this value was inherited from the Default.\nRight-click to introduce this attribute into character database.";
+							else
+								szHintText += "\n\nYou can't modify because this value was inherited from template \"" + pSource->m_szName + "\".\nRight-click to introduce this attribute into character database.";
+						}
+						else if (ImGui::BeginCombo("Preferred Team", pValue->c_str(), ImGuiComboFlags_None))
+						{
+							if (ImGui::Selectable("Terrorist"))
+								*pValue = "T";
+							if (ImGui::Selectable("Counter-Terrorist"))
+								*pValue = "CT";
+							if (ImGui::Selectable("Any"))
+								*pValue = "ANY";
+
+							ImGui::EndCombo();
+						}
+
+						// Do the hint outside the style change.
+						ImGui::SameLine();
+						ImGui::TextDisabled("(?)");
+						if (ImGui::IsItemHovered())
+						{
+							ImGui::BeginTooltip();
+							ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
+							ImGui::TextUnformatted(szHintText.c_str());
+							ImGui::PopTextWrapPos();
+							ImGui::EndTooltip();
+						}
+
+						// Right-click menu.
+						if (ImGui::BeginPopupContextItem("Team##AddValueOfThisAttrib"))
+						{
+							if (!bValueValid && ImGui::MenuItem("Introduce \"Team\"."))
+								BotCopy.m_szTeam = "<EMPTY>";
+							else
+								BotCopy.m_szTeam.clear();	// Which leads to invalid and returns to template value.
+
+							ImGui::EndPopup();
+						}
+					};
+					static const auto fnListAttrib = [](void)	// Specialized for m_rgszWpn
+					{
+						BotProfile_t*	pSource = nullptr;
+						Weapons_t*		pValue = BotCopy.Get<Weapons_t>(BPReflection::WEAPON_PREFERENCE, &pSource);
+						const bool		bValueSanity = BotCopy.AttribSanity<Weapons_t>(BPReflection::WEAPON_PREFERENCE);	// Is the value applying on me no matter where did it come from valid?
+						const bool		bValueValid = BotCopy.AttribValid<Weapons_t>(BPReflection::WEAPON_PREFERENCE);	// Is value from myself valid? Or am I using value from a template?
+						std::string		szHintText = "Right-click me for more options.\n\n"s + BotCopy.GetAttribIntro(BPReflection::WEAPON_PREFERENCE);
+
+						// Generate a mask for current character.
+						rgbCanWpnEnlist.fill(true);
+						for (int i = 0; i < _countof(g_rgszWeaponNames); ++i)
+						{
+							for (const auto& szWeapon : *pValue)
 							{
-								rgbCanWpnEnlist[i] = false;
-								break;
+								if (szWeapon == g_rgszWeaponNames[i])
+								{
+									rgbCanWpnEnlist[i] = false;
+									break;
+								}
 							}
 						}
-					}
 
-					ImGui::Text("Prefered Weapons:");
-					if (ImGui::BeginPopupContextItem("Add Weapon##popup%s"))
-					{
-						if (const char* psz = fnWeaponMenu(g_rgbIsBuyCommand, rgbCanWpnEnlist); psz != nullptr)
-							BotCopy.m_rgszWpnPreference.emplace_back(psz);
-
-						ImGui::EndPopup();
-					}
-					if (ImGui::IsItemHovered())
-						ImGui::SetTooltip("Right click to append new preference at the end.\nDrag and draw in the following box to reorder.");
-
-					auto iLineCount = std::clamp(BotCopy.m_rgszWpnPreference.size(), 1U, 7U);
-					if (ImGui::BeginListBox("##WeaponList", ImVec2(-FLT_MIN, iLineCount * ImGui::GetTextLineHeightWithSpacing())))
-					{
-						for (auto itszWeapon = BotCopy.m_rgszWpnPreference.begin(); itszWeapon != BotCopy.m_rgszWpnPreference.end(); /* Do nothing */)
+						// Add disabled hint.
+						if (!bValueValid)
 						{
-							ImGui::Selectable(itszWeapon->c_str());
+							if (pSource == &BotProfileMgr::m_Default)
+								szHintText += "\n\nYou can't modify because this value was inherited from the Default.\nRight-click to introduce this attribute into character database.";
+							else
+								szHintText += "\n\nYou can't modify because this value was inherited from template \"" + pSource->m_szName + "\".\nRight-click to introduce this attribute into character database.";
+						}
 
-							if (ImGui::BeginPopupContextItem())
+						if (!bValueSanity)
+							szHintText += "\n\nOne of these weapon names is wrong.\nConsider having it fixed.";
+
+						// Print title 'Prefered Weapon' and (?) first.
+						ImGui::Text("Preferred Weapons:"); ImGui::SameLine();
+						ImGui::TextDisabled("(?)");
+						if (ImGui::BeginPopupContextItem("HintMenuOfPrefWpns"))
+						{
+							if (!bValueValid && ImGui::MenuItem("Introduce \"WeaponPreference\""))
+								*BotCopy.GetSelf<Weapons_t>(BPReflection::WEAPON_PREFERENCE) = *pValue;
+							else if (bValueValid && ImGui::MenuItem("Drop \"WeaponPreference\" table"))
+								BotCopy.GetSelf<Weapons_t>(BPReflection::WEAPON_PREFERENCE)->clear();
+
+							if (bValueValid && ImGui::BeginMenu("Append at the end..."))	// Valid first, and you will have append menu.
 							{
-								bool bShouldSkipIterInc = false;
-
-								if (ImGui::MenuItem("Delete"))
+								if (const char* psz = fnWeaponMenu(g_rgbIsBuyCommand, rgbCanWpnEnlist); psz != nullptr)
 								{
-									itszWeapon = BotCopy.m_rgszWpnPreference.erase(itszWeapon);
-									bShouldSkipIterInc = true;
+									BotProfileMgr::RemoveNoneInWpnPref(pValue);
+									pValue->emplace_back(psz);
 								}
 
-								if (ImGui::BeginMenu("Insert weapon..."))
+								ImGui::EndMenu();
+							}
+
+							if (bValueValid && ImGui::MenuItem("Set to 'none'"))
+							{
+								pValue->clear();
+								pValue->emplace_back("none");
+							}
+
+							ImGui::EndPopup();
+						}
+						if (ImGui::IsItemHovered())
+						{
+							ImGui::BeginTooltip();
+							ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
+							ImGui::TextUnformatted(szHintText.c_str());
+							ImGui::PopTextWrapPos();
+							ImGui::EndTooltip();
+						}
+
+						if (!bValueValid)
+							ImGui::BeginDisabled();
+
+						// Draw the actual box.
+						auto iLineCount = std::clamp(pValue->size(), 1U, 7U);
+						if (ImGui::BeginListBox("##WeaponList", ImVec2(-FLT_MIN, iLineCount * ImGui::GetTextLineHeightWithSpacing() + 4)))
+						{
+							for (auto itszWeapon = pValue->begin(); itszWeapon != pValue->end(); /* Do nothing */)
+							{
+								bool bInsaneItem = !_stricmp(itszWeapon->c_str(), "none") && pValue->size() > 1;
+
+								// Red background for insane value.
+								if (!bInsaneItem)
+									ImGui::PushStyleColor(ImGuiCol_FrameBg, (ImVec4)ImColor::HSV(0.98f, 0.2f, 1));
+
+								ImGui::Selectable(itszWeapon->c_str());
+
+								// The red background works on one item per time.
+								if (!bInsaneItem)
+									ImGui::PopStyleColor();
+
+								// After red-mask was removed, we can start a tooptip.
+								if (ImGui::IsItemHovered())
+									ImGui::SetTooltip("Right click to insert a new weapon here.\nDrag and draw to reorder.");
+
+								if (!bValueValid)	// You can't edit them anyway.
+									goto LAB_CONTINUE;
+
+								// Right click on weapon name.
+								if (ImGui::BeginPopupContextItem())
 								{
-									if (const char* psz = fnWeaponMenu(g_rgbIsBuyCommand, rgbCanWpnEnlist); psz != nullptr)
+									bool bShouldSkipIterInc = false;
+
+									if (ImGui::MenuItem("Delete"))
 									{
-										itszWeapon = BotCopy.m_rgszWpnPreference.insert(itszWeapon, psz);
+										itszWeapon = pValue->erase(itszWeapon);
 										bShouldSkipIterInc = true;
 									}
 
-									ImGui::EndMenu();
+									if (ImGui::BeginMenu("Insert weapon..."))
+									{
+										if (const char* psz = fnWeaponMenu(g_rgbIsBuyCommand, rgbCanWpnEnlist); psz != nullptr)
+										{
+											BotProfileMgr::RemoveNoneInWpnPref(pValue);
+											itszWeapon = pValue->insert(itszWeapon, psz);
+											bShouldSkipIterInc = true;
+										}
+
+										ImGui::EndMenu();
+									}
+
+									ImGui::EndPopup();
+
+									if (bShouldSkipIterInc)
+										continue;
 								}
 
-								ImGui::EndPopup();
+								// Reordering
+								if (ImGui::IsItemActive() && !ImGui::IsItemHovered())
+								{
+									bool bMovingUp = (ImGui::GetMouseDragDelta(ImGuiMouseButton_Left).y < 0.f);
+									if (itszWeapon == pValue->begin() && bMovingUp)
+										goto LAB_CONTINUE;
 
-								if (bShouldSkipIterInc)
-									continue;
+									auto iterMovingTo = itszWeapon;
+									bMovingUp ? iterMovingTo-- : iterMovingTo++;
+
+									if (iterMovingTo == pValue->end())
+										goto LAB_CONTINUE;
+
+									std::swap(*itszWeapon, *iterMovingTo);	// Have to dereference to actually iterators. Kinda' sucks.
+									ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
+								}
+
+							LAB_CONTINUE:;
+								++itszWeapon;
 							}
 
-							if (ImGui::IsItemActive() && !ImGui::IsItemHovered())
-							{
-								bool bMovingUp = (ImGui::GetMouseDragDelta(ImGuiMouseButton_Left).y < 0.f);
-								if (itszWeapon == BotCopy.m_rgszWpnPreference.begin() && bMovingUp)
-									goto LAB_CONTINUE;
-
-								auto iterMovingTo = itszWeapon;
-								bMovingUp ? iterMovingTo-- : iterMovingTo++;
-
-								if (iterMovingTo == BotCopy.m_rgszWpnPreference.end())
-									goto LAB_CONTINUE;
-
-								std::swap(*itszWeapon, *iterMovingTo);	// Have to dereference to actually iterators. Kinda' sucks.
-								ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
-							}
-
-						LAB_CONTINUE:;
-							++itszWeapon;
+							// #TODO Handle 'none' tag.
+							ImGui::EndListBox();
 						}
 
-						// #TODO Handle 'none' tag.
-						ImGui::EndListBox();
-					}
-#pragma endregion Weapon preference selection
-					ImGui::InputFloat("Attack Delay", &BotCopy.m_flAttackDelay, 0.05f, 0.25f, "%.2f", ImGuiInputTextFlags_CharsDecimal);
-					ImGui::InputFloat("Reaction Time", &BotCopy.m_flReactionTime, 0.05f, 0.25f, "%.2f", ImGuiInputTextFlags_CharsDecimal);
-					ImGui::InputInt("Aggression", &BotCopy.m_iAggression, 5, 20, ImGuiInputTextFlags_CharsDecimal);
-					ImGui::InputInt("Cost", &BotCopy.m_iCost, 1, 1, ImGuiInputTextFlags_CharsDecimal);
-					ImGui::InputInt("Skill", &BotCopy.m_iSkill, 5, 20, ImGuiInputTextFlags_CharsDecimal);
-					ImGui::InputInt("Teamwork", &BotCopy.m_iTeamwork, 5, 20, ImGuiInputTextFlags_CharsDecimal);
-					ImGui::InputInt("Voice Pitch", &BotCopy.m_iVoicePitch, 5, 20, ImGuiInputTextFlags_CharsDecimal);
-					ImGui::InputText("Skin Reference", &BotCopy.m_szSkin);
-					if (ImGui::BeginCombo("Preferred Team", BotCopy.m_szTeam.c_str(), ImGuiComboFlags_None))
-					{
-						if (ImGui::Selectable("<EMPTY>"))
-							BotCopy.m_szTeam = "";
-						if (ImGui::Selectable("Terrorist"))
-							BotCopy.m_szTeam = "T";
-						if (ImGui::Selectable("Counter-Terrorist"))
-							BotCopy.m_szTeam = "CT";
-						if (ImGui::Selectable("Any"))
-							BotCopy.m_szTeam = "ANY";
+						if (!bValueValid)
+							ImGui::EndDisabled();
+					};
 
-						ImGui::EndCombo();
-					}
-					ImGui::InputText("Voicebank", &BotCopy.m_szVoiceBank);	// #UNDONE_LONG_TERM file selection?
+					fnStringAttrib(BPReflection::NAME, "Character Name");
+					fnBitsAttrib();	// m_bitsDifficulty
+					fnListAttrib();	// m_rgszWpnPreference
+					fnArithmeticAttrib(BPReflection::ATTACK_DELAY, "Attack Delay", std::make_pair(0.05f, 0.25f));
+					fnArithmeticAttrib(BPReflection::REACTION_TIME, "Reaction Time", std::make_pair(0.05f, 0.25f));
+					fnArithmeticAttrib(BPReflection::AGGRESSION, "Aggression", std::make_pair(5, 20));
+					fnArithmeticAttrib(BPReflection::COST, "Cost", std::make_pair(1, 1));
+					fnArithmeticAttrib(BPReflection::SKILL, "Skill", std::make_pair(5, 20));
+					fnArithmeticAttrib(BPReflection::TEAMWORK, "Teamwork", std::make_pair(5, 20));
+					fnArithmeticAttrib(BPReflection::VOICEPITCH, "Voice Pitch", std::make_pair(5, 20));
+					fnStringAttrib(BPReflection::SKIN, "Skin Reference");
+					fnComboAttrib();	// m_szTeam
+					fnStringAttrib(BPReflection::VOICEBANK, "Voicebank");	// #UNDONE_LONG_TERM file selection?
 
 					auto pszErrorMessage = BotCopy.SanityCheck();	// A sanity a day keeps CTDs away.
 
@@ -3277,7 +4005,6 @@ void BotsWindow(void)
 					ImGui::SameLine();
 					if (ImGui::Button("Cancel", ImVec2(120, 0))) { ImGui::CloseCurrentPopup(); }
 					ImGui::EndPopup();
-
 				}
 #pragma endregion CharacterEditingModal
 
@@ -3363,16 +4090,13 @@ void BotsWindow(void)
 					ImGui::BeginChild("Template hierarchy view", ImVec2(iModalContentWidth, 340), true, ImGuiWindowFlags_None);
 
 					// Code reusage... so ugly...
-					auto fnDisplayTemplateWithOverrideInfo = [](const BotProfile_t& Tpl)
+					auto fnDisplayTemplateWithOverrideInfo = [](BotProfile_t& Tpl)
 					{
-						if (!Tpl.m_rgszWpnPreference.empty())
+						if (Tpl.m_rgszWpnPreference.size() == 1 && !_stricmp(Tpl.m_rgszWpnPreference.front().c_str(), "none"))
 						{
-							for (const auto& szWpn : Tpl.m_rgszWpnPreference)
-								ImGui::BulletText("WeaponPreference: %s", szWpn.c_str());
-						}
-						else if (Tpl.m_bExplicitlyNoneWpnPref)
-						{
-							if (BotCopy.m_bExplicitlyNoneWpnPref)
+							auto pCur = BotCopy.Get<Weapons_t>(BPReflection::WEAPON_PREFERENCE);
+
+							if (pCur->size() == 1 && !_stricmp(pCur->front().c_str(), "none"))
 								ImGui::BulletText("WeaponPreference: none");
 							else
 							{
@@ -3380,9 +4104,14 @@ void BotsWindow(void)
 								ImGui::TextColored(IMGUI_RED, "(Overrided) WeaponPreference: none");
 							}
 						}
+						else if (!Tpl.m_rgszWpnPreference.empty())
+						{
+							for (const auto& szWpn : Tpl.m_rgszWpnPreference)
+								ImGui::BulletText("WeaponPreference: %s", szWpn.c_str());
+						}
 						if (Tpl.m_flAttackDelay >= 0)
 						{
-							if (Tpl.m_flAttackDelay == BotCopy.m_flAttackDelay)
+							if (Tpl.m_flAttackDelay == *BotCopy.Get<float>(BPReflection::ATTACK_DELAY))
 								ImGui::BulletText("Attack Delay: %.2f", Tpl.m_flAttackDelay);
 							else
 							{
@@ -3392,7 +4121,7 @@ void BotsWindow(void)
 						}
 						if (Tpl.m_flReactionTime >= 0)
 						{
-							if (Tpl.m_flReactionTime == BotCopy.m_flReactionTime)
+							if (Tpl.m_flReactionTime == *BotCopy.Get<float>(BPReflection::REACTION_TIME))
 								ImGui::BulletText("Reaction Time: %.2f", Tpl.m_flReactionTime);
 							else
 							{
@@ -3406,7 +4135,7 @@ void BotsWindow(void)
 							{
 								if (Tpl.m_bitsDifficulty & (1 << i))
 								{
-									if (Tpl.m_bitsDifficulty == BotCopy.m_bitsDifficulty)
+									if (Tpl.m_bitsDifficulty == *BotCopy.Get<int>(BPReflection::DIFFICULTY))
 										ImGui::BulletText("Difficulty: %s", g_rgszDifficultyNames[(size_t)i]);
 									else
 									{
@@ -3418,7 +4147,7 @@ void BotsWindow(void)
 						}
 						if (Tpl.m_iAggression >= 0 && Tpl.m_iAggression <= 100)
 						{
-							if (Tpl.m_iAggression == BotCopy.m_iAggression)
+							if (Tpl.m_iAggression == *BotCopy.Get<int>(BPReflection::AGGRESSION))
 								ImGui::BulletText("Aggression: %d", Tpl.m_iAggression);
 							else
 							{
@@ -3428,7 +4157,7 @@ void BotsWindow(void)
 						}
 						if (Tpl.m_iCost >= 1 && Tpl.m_iCost <= 5)
 						{
-							if (Tpl.m_iCost == BotCopy.m_iCost)
+							if (Tpl.m_iCost == *BotCopy.Get<int>(BPReflection::COST))
 								ImGui::BulletText("Cost: %d", Tpl.m_iCost);
 							else
 							{
@@ -3438,7 +4167,7 @@ void BotsWindow(void)
 						}
 						if (Tpl.m_iSkill >= 0 && Tpl.m_iSkill <= 100)
 						{
-							if (Tpl.m_iSkill == BotCopy.m_iSkill)
+							if (Tpl.m_iSkill == *BotCopy.Get<int>(BPReflection::SKILL))
 								ImGui::BulletText("Skill: %d", Tpl.m_iSkill);
 							else
 							{
@@ -3448,7 +4177,7 @@ void BotsWindow(void)
 						}
 						if (Tpl.m_iTeamwork >= 0 && Tpl.m_iTeamwork <= 100)
 						{
-							if (Tpl.m_iTeamwork == BotCopy.m_iTeamwork)
+							if (Tpl.m_iTeamwork == *BotCopy.Get<int>(BPReflection::TEAMWORK))
 								ImGui::BulletText("Teamwork: %d", Tpl.m_iTeamwork);
 							else
 							{
@@ -3458,7 +4187,7 @@ void BotsWindow(void)
 						}
 						if (Tpl.m_iVoicePitch > 0)
 						{
-							if (Tpl.m_iVoicePitch == BotCopy.m_iVoicePitch)
+							if (Tpl.m_iVoicePitch == *BotCopy.Get<int>(BPReflection::VOICEPITCH))
 								ImGui::BulletText("Voice Pitch: %d", Tpl.m_iVoicePitch);
 							else
 							{
@@ -3466,9 +4195,9 @@ void BotsWindow(void)
 								ImGui::TextColored(IMGUI_RED, "(Overrided) Voice Pitch: %d", Tpl.m_iVoicePitch);
 							}
 						}
-						if (!Tpl.m_szSkin.empty())
+						if (Tpl.AttribSanity<std::string>(BPReflection::SKIN, true))
 						{
-							if (Tpl.m_szSkin == BotCopy.m_szSkin)
+							if (Tpl.m_szSkin == *BotCopy.Get<std::string>(BPReflection::SKIN))
 								ImGui::BulletText("Skin: %s", Tpl.m_szSkin.c_str());
 							else
 							{
@@ -3476,9 +4205,9 @@ void BotsWindow(void)
 								ImGui::TextColored(IMGUI_RED, "(Overrided) Skin: %s", Tpl.m_szSkin.c_str());
 							}
 						}
-						if (!Tpl.m_szTeam.empty())
+						if (Tpl.AttribSanity<std::string>(BPReflection::TEAM, true))
 						{
-							if (Tpl.m_szTeam == BotCopy.m_szTeam)
+							if (Tpl.m_szTeam == *BotCopy.Get<std::string>(BPReflection::TEAM))
 								ImGui::BulletText("Team: %s", Tpl.m_szTeam.c_str());
 							else
 							{
@@ -3486,9 +4215,9 @@ void BotsWindow(void)
 								ImGui::TextColored(IMGUI_RED, "(Overrided) Team: %s", Tpl.m_szTeam.c_str());
 							}
 						}
-						if (!Tpl.m_szVoiceBank.empty())
+						if (Tpl.AttribSanity<std::string>(BPReflection::VOICEBANK, true))
 						{
-							if (Tpl.m_szVoiceBank == BotCopy.m_szVoiceBank)
+							if (Tpl.m_szVoiceBank == *BotCopy.Get<std::string>(BPReflection::VOICEBANK))
 								ImGui::BulletText("Voicebank: %s", Tpl.m_szVoiceBank.c_str());
 							else
 							{
@@ -3568,29 +4297,30 @@ void BotsWindow(void)
 					ImGui::EndChild();
 					ImGui::PopStyleVar();
 
+					// 'Yes' button.
 					ImGui::SetCursorPos(ImVec2(240 / 2 - 60, ImGui::GetWindowContentRegionMax().y - 60));
 					ImGui::PushStyleColor(ImGuiCol_Button, (ImVec4)ImColor(255, 199, 206));
 					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, (ImVec4)ImColor::HSV(0.98f, 0.35f, 1.0f));
 					ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImVec4)ImColor::HSV(0.98f, 0.45f, 1.0f));
 					ImGui::PushStyleColor(ImGuiCol_Text, (ImVec4)ImColor(156, 0, 6));
-					bTreeNodeExpanded = ImGui::Button("Reconstitute", ImVec2(120, 24));
-					if (ImGui::IsItemHovered(ImGuiHoveredFlags_None))
-						ImGui::SetTooltip("This will reconstruct the character: all non-template data will be lost.\nARE YOU SURE?");
+					bTreeNodeExpanded = ImGui::Button("Reconstitute", ImVec2(120, 24));	// Recycled variable. Ignore its name.
+					//if (ImGui::IsItemHovered(ImGuiHoveredFlags_None))
+					//	ImGui::SetTooltip("This will reconstruct the character: all non-template data will be lost.\nARE YOU SURE?");
 					ImGui::PopStyleColor(4);
-					if (bTreeNodeExpanded)
+					if (bTreeNodeExpanded)	// Recycled variable. Ignore its name.
 					{
 						if (BotCopy.m_rgszRefTemplates.empty())
 							ImGui::OpenPopup("Error - Template Selection");
 						else
 						{
-							*itChar = std::move(BotCopy);
+							Character.m_rgszRefTemplates = BotCopy.m_rgszRefTemplates;
 							ImGui::CloseCurrentPopup();
 						}
 					}
 
 					// Error on save.
 					ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-					if (ImGui::BeginPopupModal("Error - Template Selection", nullptr, ImGuiWindowFlags_AlwaysAutoResize|ImGuiWindowFlags_NoResize))
+					if (ImGui::BeginPopupModal("Error - Template Selection", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize))
 					{
 						auto iModalContentWidth = ImGui::GetWindowContentRegionMax().x - ImGui::GetWindowContentRegionMin().x;
 
@@ -3617,20 +4347,17 @@ void BotsWindow(void)
 				float flY = vecPos.y + 22;	// Save the line 1 Y coord of this table.
 
 				vecPos.y += 22; ImGui::SetCursorPos(vecPos);
-				ImGui::TextColored(Character.m_iSkill > 66 ? IMGUI_GREEN : Character.m_iSkill > 33 ? IMGUI_YELLOW : IMGUI_RED, "Skill: %d", Character.m_iSkill);
+				ImGui::TextColored(*Character.Get<int>(BPReflection::SKILL) > 66 ? IMGUI_GREEN : *Character.Get<int>(BPReflection::SKILL) > 33 ? IMGUI_YELLOW : IMGUI_RED, "Skill: %d", *Character.Get<int>(BPReflection::SKILL));
 				vecPos.y += 22; ImGui::SetCursorPos(vecPos);
-				ImGui::TextColored(Character.m_iTeamwork > 66 ? IMGUI_GREEN : Character.m_iTeamwork > 33 ? IMGUI_YELLOW : IMGUI_RED, "Co-op: %d", Character.m_iTeamwork);
+				ImGui::TextColored(*Character.Get<int>(BPReflection::TEAMWORK) > 66 ? IMGUI_GREEN : *Character.Get<int>(BPReflection::TEAMWORK) > 33 ? IMGUI_YELLOW : IMGUI_RED, "Co-op: %d", *Character.Get<int>(BPReflection::TEAMWORK));
 				vecPos.y += 22; ImGui::SetCursorPos(vecPos);
-				ImGui::TextColored(Character.m_iAggression > 66 ? IMGUI_GREEN : Character.m_iAggression > 33 ? IMGUI_YELLOW : IMGUI_RED, "Bravery: %d", Character.m_iAggression);
+				ImGui::TextColored(*Character.Get<int>(BPReflection::AGGRESSION) > 66 ? IMGUI_GREEN : *Character.Get<int>(BPReflection::AGGRESSION) > 33 ? IMGUI_YELLOW : IMGUI_RED, "Bravery: %d", *Character.Get<int>(BPReflection::AGGRESSION));
 
 				vecPos = ImVec2((pPortrait ? pPortrait->m_iWidth : 128) + 120, flY); ImGui::SetCursorPos(vecPos);
-				ImGui::Text("Silencer User: %s", Character.m_bPrefersSilencer ? "Yes" : "No");
+				ImGui::Text("Silencer User: %s", Character.m_bPrefersSilencer ? "Yes" : "No");	// Since all character has their own name, so..
 
-				if (!Character.m_rgszWpnPreference.empty())
-				{
-					vecPos.y += 22; ImGui::SetCursorPos(vecPos);
-					ImGui::Text("Preference: %s", Character.m_rgszWpnPreference.front().c_str());
-				}
+				vecPos.y += 22; ImGui::SetCursorPos(vecPos);
+				ImGui::Text("Preference: %s", Character.GetPreferedWpn());
 			}
 
 			ImGui::EndTable();
