@@ -2500,7 +2500,7 @@ namespace MissionPack
 
 		if (fs::exists(Files[FILE_OVERVIEW]))
 		{
-			// Overfiew file parse #TODO
+			// Overfiew file parse #TODO_OVERVIEW_FILE
 		}
 
 		if (fs::exists(Files[FILE_THUMBNAIL]))
@@ -2534,7 +2534,7 @@ namespace MissionPack
 		Files_t rgFiles;
 		CompileFileList(rgFiles, hFolder, false);
 
-		if (!fs::exists(rgFiles[FILE_OVERVIEW]) && fs::exists(Files[FILE_OVERVIEW]))	// Properly output Overview.vdf #TODO
+		if (!fs::exists(rgFiles[FILE_OVERVIEW]) && fs::exists(Files[FILE_OVERVIEW]))	// Properly output Overview.vdf #TODO_OVERVIEW_FILE
 			fs::copy_file(Files[FILE_OVERVIEW], rgFiles[FILE_OVERVIEW]);
 
 		if (!fs::exists(rgFiles[FILE_THUMBNAIL]) && fs::exists(Files[FILE_THUMBNAIL]))
@@ -2745,8 +2745,8 @@ void MainMenuBar(void)
 			ImGui::Separator();
 			ImGui::MenuItem("Campaign", "F1", &g_bShowCampaignWindow, !(g_bitsAsyncStatus & Async_e::UPDATING_MISSION_PACK_INFO));
 			ImGui::MenuItem("Loci", "F2", &g_bShowLociWindow, !(g_bitsAsyncStatus & Async_e::UPDATING_MISSION_PACK_INFO));
-			ImGui::MenuItem("Maps", "F3", &g_bShowMapsWindow, !(g_bitsAsyncStatus & Async_e::UPDATING_MAPS_INFO));	// #TODO shotcut does not implement yet.
-			ImGui::MenuItem("BOTs", "F4", &g_bShowBotsWindow, !(g_bitsAsyncStatus & Async_e::UPDATING_MISSION_PACK_INFO));	// #TODO shotcut does not implement yet.
+			ImGui::MenuItem("Maps", "F3", &g_bShowMapsWindow, !(g_bitsAsyncStatus & Async_e::UPDATING_MAPS_INFO));
+			ImGui::MenuItem("BOTs", "F4", &g_bShowBotsWindow, !(g_bitsAsyncStatus & Async_e::UPDATING_MISSION_PACK_INFO));
 			ImGui::EndMenu();
 		}
 
@@ -2811,8 +2811,7 @@ void ConfigWindow(void)
 			std::thread t(
 				[](void)
 				{
-					if (g_bitsAsyncStatus & Async_e::UPDATING_MAPS_INFO)
-						std::this_thread::sleep_for(2s);	// #UNTESTED_BUT_SHOULD_WORK
+					// #UNTESTED Try quick selection.
 
 					g_bitsAsyncStatus |= Async_e::UPDATING_MAPS_INFO;
 					Maps::Load();	// This has to happen after all potential hlmod folders were enlisted.
@@ -4452,10 +4451,14 @@ int main(int argc, char** argv)
 #pragma endregion Debug Window
 
 #pragma region Key detection
-		if (ImGui::IsKeyPressed(0x122))
+		if (ImGui::IsKeyPressed(0x122))	// F1
 			g_bShowCampaignWindow = !g_bShowCampaignWindow;
-		if (ImGui::IsKeyPressed(0x123))
+		if (ImGui::IsKeyPressed(0x123))	// F2
 			g_bShowLociWindow = !g_bShowLociWindow;
+		if (ImGui::IsKeyPressed(0x124))	// F3
+			g_bShowMapsWindow = !g_bShowMapsWindow;
+		if (ImGui::IsKeyPressed(0x125))	// F4
+			g_bShowBotsWindow = !g_bShowBotsWindow;
 #pragma endregion Key detection
 
 		MainMenuBar();
