@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="CZeroEditor.cpp" />
+    <ClCompile Include="Main.cpp" />
     <ClCompile Include="imgui\imgui.cpp">
       <Filter>ImGui</Filter>
     </ClCompile>
@@ -42,8 +42,39 @@
     <ClCompile Include="..\Hydrogenium\UtlString.ixx">
       <Filter>Hydrogenium</Filter>
     </ClCompile>
-    <ClCompile Include="UtlImage.ixx" />
+    <ClCompile Include="UtlImage.hpp" />
     <ClCompile Include="BspParser.cpp" />
+    <ClCompile Include="Precompiled.cpp" />
+    <ClCompile Include="BotProfile_t.cpp">
+      <Filter>Classes</Filter>
+    </ClCompile>
+    <ClCompile Include="CareerGame_t.cpp">
+      <Filter>Classes</Filter>
+    </ClCompile>
+    <ClCompile Include="Locus_t.cpp">
+      <Filter>Classes</Filter>
+    </ClCompile>
+    <ClCompile Include="Map_t.cpp">
+      <Filter>Classes</Filter>
+    </ClCompile>
+    <ClCompile Include="Task_t.cpp">
+      <Filter>Classes</Filter>
+    </ClCompile>
+    <ClCompile Include="BotProfileMgr.cpp">
+      <Filter>Namespaces</Filter>
+    </ClCompile>
+    <ClCompile Include="CZFile.cpp">
+      <Filter>Namespaces</Filter>
+    </ClCompile>
+    <ClCompile Include="Maps.cpp">
+      <Filter>Namespaces</Filter>
+    </ClCompile>
+    <ClCompile Include="MissionPack.cpp">
+      <Filter>Namespaces</Filter>
+    </ClCompile>
+    <ClCompile Include="Gui_BotProfile.cpp">
+      <Filter>Namespaces</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="ImGui">
@@ -66,6 +97,12 @@
     </Filter>
     <Filter Include="Hydrogenium">
       <UniqueIdentifier>{5faf4b3d-7957-4c61-8566-c94bd41c19ca}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Classes">
+      <UniqueIdentifier>{914cff61-d180-421f-b73b-a64aa8157daa}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Namespaces">
+      <UniqueIdentifier>{d3536032-acd2-4eb3-a920-e40865812e87}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -102,6 +139,8 @@
     <ClInclude Include="imgui\misc\freetype\imgui_freetype.h">
       <Filter>ImGui\misc\freetype</Filter>
     </ClInclude>
+    <ClInclude Include="Precompiled.hpp" />
+    <ClInclude Include="ScopedEnumOperator.hpp" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="imgui\misc\cpp\README.txt">

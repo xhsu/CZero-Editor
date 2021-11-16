@@ -26,19 +26,19 @@ import UtlString;
 // Key - the "Name" of a Subkey.
 // Value - the "Number/String" part of a KeyValue.
 
-export struct NewKeyValues
+export struct ValveKeyValues
 {
-	NewKeyValues(const char* pszName) noexcept
+	ValveKeyValues(const char* pszName) noexcept
 	{
 		Init();
 		SetName(pszName);
 	}
-	//NewKeyValues(const std::integral auto& index) noexcept
+	//ValveKeyValues(const std::integral auto& index) noexcept
 	//{
 	//	Init();
 	//	SetName(std::to_string(index).c_str());
 	//}
-	virtual ~NewKeyValues(void) noexcept
+	virtual ~ValveKeyValues(void) noexcept
 	{
 		RemoveEverything();
 	}
@@ -121,8 +121,8 @@ export struct NewKeyValues
 
 		RemoveEverything();
 
-		NewKeyValues* pPreviousKey = nullptr;
-		NewKeyValues* pCurrentKey = this;
+		ValveKeyValues* pPreviousKey = nullptr;
+		ValveKeyValues* pCurrentKey = this;
 
 		while (true)
 		{
@@ -135,7 +135,7 @@ export struct NewKeyValues
 
 			if (!pCurrentKey)
 			{
-				pCurrentKey = new NewKeyValues(token);
+				pCurrentKey = new ValveKeyValues(token);
 
 				if (pPreviousKey)
 				{
@@ -167,26 +167,26 @@ export struct NewKeyValues
 
 		return true;
 	}
-	bool SaveToBuffer(char* pBuffer, size_t* iSize) noexcept
+	bool SaveToBuffer(char* pBuffer, size_t* piSize) noexcept
 	{
 		CBuffer buf(0x10000);
 		RecursiveSaveToBuffer(buf, 0);
 
 		memcpy(pBuffer, buf.Get(), buf.Tell());
 
-		*iSize = buf.Tell();
+		*piSize = buf.Tell();
 
 		return true;
 	}
 
 	// find a entry
-	NewKeyValues* FindEntry(const char* pszName, bool bCreate = false) noexcept
+	ValveKeyValues* FindEntry(const char* pszName, bool bCreate = false) noexcept
 	{
 		if (!pszName || !pszName[0])
 			return this;
 
-		NewKeyValues* lastItem = nullptr;
-		NewKeyValues* dat;
+		ValveKeyValues* lastItem = nullptr;
+		ValveKeyValues* dat;
 
 		for (dat = m_pSub; dat != nullptr; dat = dat->m_pPeer)
 		{
@@ -202,7 +202,7 @@ export struct NewKeyValues
 		{
 			if (bCreate)
 			{
-				dat = new NewKeyValues(pszName);
+				dat = new ValveKeyValues(pszName);
 
 				if (lastItem)
 				{
@@ -223,31 +223,31 @@ export struct NewKeyValues
 	}
 
 	// craete a entry
-	NewKeyValues* CreateEntry(const char* pszName = nullptr) noexcept	// nullptr on pszName to represent a auto-index entry name.
+	ValveKeyValues* CreateEntry(const char* pszName = nullptr) noexcept	// nullptr on pszName to represent a auto-index entry name.
 	{
-		NewKeyValues* dat = nullptr;
+		ValveKeyValues* dat = nullptr;
 
 		if (!pszName)
 		{
 			int index = 1;
 
-			for (NewKeyValues* dat = m_pSub; dat != nullptr; dat = dat->m_pPeer)
+			for (ValveKeyValues* dat = m_pSub; dat != nullptr; dat = dat->m_pPeer)
 			{
 				if (auto val = atoi(dat->GetName()); index <= val)
 					index = val + 1;
 			}
 
-			dat = new NewKeyValues(std::to_string(index).c_str());
+			dat = new ValveKeyValues(std::to_string(index).c_str());
 		}
 		else
-			dat = new NewKeyValues(pszName);
+			dat = new ValveKeyValues(pszName);
 
 		AddEntry(dat);
 		return dat;
 	}
 
 	// add/remove an existing entry
-	void AddEntry(NewKeyValues* pEntry)
+	void AddEntry(ValveKeyValues* pEntry) noexcept
 	{
 		if (m_pSub == nullptr)
 		{
@@ -255,7 +255,7 @@ export struct NewKeyValues
 		}
 		else
 		{
-			NewKeyValues* pTempDat = m_pSub;
+			ValveKeyValues* pTempDat = m_pSub;
 
 			while (pTempDat->GetNextEntry() != nullptr)
 			{
@@ -265,7 +265,7 @@ export struct NewKeyValues
 			pTempDat->m_pPeer = pEntry;
 		}
 	}
-	void RemoveEntry(NewKeyValues* pEntry)
+	void RemoveEntry(ValveKeyValues* pEntry) noexcept
 	{
 		if (!pEntry)
 			return;
@@ -276,7 +276,7 @@ export struct NewKeyValues
 		}
 		else
 		{
-			NewKeyValues* dat = m_pSub;
+			ValveKeyValues* dat = m_pSub;
 
 			while (dat->m_pPeer)
 			{
@@ -294,17 +294,17 @@ export struct NewKeyValues
 	}
 
 	// get entry
-	NewKeyValues* GetFirstEntry(void) const noexcept
+	ValveKeyValues* GetFirstEntry(void) const noexcept
 	{
 		return m_pSub;
 	}
-	NewKeyValues* GetNextEntry(void) const noexcept
+	ValveKeyValues* GetNextEntry(void) const noexcept
 	{
 		return m_pPeer;
 	}
-	NewKeyValues* GetFirstSubkey(void) const noexcept
+	ValveKeyValues* GetFirstSubkey(void) const noexcept
 	{
-		NewKeyValues* dat = m_pSub;
+		ValveKeyValues* dat = m_pSub;
 
 		while (dat && !dat->m_pSub)
 		{
@@ -313,9 +313,9 @@ export struct NewKeyValues
 
 		return dat;
 	}
-	NewKeyValues* GetNextSubkey(void) const noexcept
+	ValveKeyValues* GetNextSubkey(void) const noexcept
 	{
-		NewKeyValues* dat = m_pPeer;
+		ValveKeyValues* dat = m_pPeer;
 
 		while (dat && !dat->m_pSub)
 		{
@@ -324,9 +324,9 @@ export struct NewKeyValues
 
 		return dat;
 	}
-	NewKeyValues* GetFirstKeyValue(void) const noexcept
+	ValveKeyValues* GetFirstKeyValue(void) const noexcept
 	{
-		NewKeyValues* dat = m_pSub;
+		ValveKeyValues* dat = m_pSub;
 
 		while (dat && dat->m_pSub)
 		{
@@ -335,9 +335,9 @@ export struct NewKeyValues
 
 		return dat;
 	}
-	NewKeyValues* GetNextKeyValue(void) const noexcept
+	ValveKeyValues* GetNextKeyValue(void) const noexcept
 	{
-		NewKeyValues* dat = m_pPeer;
+		ValveKeyValues* dat = m_pPeer;
 
 		while (dat && dat->m_pSub)
 		{
@@ -364,7 +364,7 @@ export struct NewKeyValues
 	// value
 	template<typename T> T GetValue(const char* pszSubkeyName = nullptr) noexcept requires(std::integral<T> || std::floating_point<T> || std::convertible_to<T, std::string>)
 	{
-		NewKeyValues* dat = FindEntry(pszSubkeyName);
+		ValveKeyValues* dat = FindEntry(pszSubkeyName);
 		if (!dat || !dat->m_pszValue)
 		{
 			if constexpr (std::convertible_to<T, std::string>)
@@ -388,7 +388,7 @@ export struct NewKeyValues
 	}
 	template<typename T> bool SetValue(const char* pszSubkeyName, const T& Value) noexcept requires(std::integral<T> || std::floating_point<T> || std::convertible_to<T, std::string>)	// Create new entry on no found.
 	{
-		NewKeyValues* dat = FindEntry(pszSubkeyName, true);
+		ValveKeyValues* dat = FindEntry(pszSubkeyName, true);
 		if (!dat)
 			return false;
 
@@ -404,7 +404,7 @@ export struct NewKeyValues
 			dat->m_pszValue = (char*)malloc(szValue.length() + 1);
 			strcpy_s(dat->m_pszValue, szValue.length() + 1, szValue.c_str());
 
-			dat->m_flValue = static_cast<float>(Value);
+			dat->m_flValue = static_cast<double>(Value);
 		}
 		else	// i.e. strings.
 		{
@@ -438,21 +438,21 @@ export struct NewKeyValues
 	}
 
 	// remove all key/value
-	virtual void Clear(void)
+	virtual void Clear(void) noexcept
 	{
 		delete m_pSub;
 		m_pSub = nullptr;
 	}
-	virtual void deleteThis(void)
+	virtual void deleteThis(void) noexcept
 	{
 		delete this;
 	}
 
 private:
-	void RemoveEverything(void)
+	void RemoveEverything(void) noexcept
 	{
-		NewKeyValues* dat;
-		NewKeyValues* datNext = nullptr;
+		ValveKeyValues* dat;
+		ValveKeyValues* datNext = nullptr;
 
 		for (dat = m_pSub; dat != nullptr; dat = datNext)
 		{
@@ -477,7 +477,7 @@ private:
 		}
 	}
 
-	void RecursiveLoadFromBuffer(CBuffer& buf)
+	void RecursiveLoadFromBuffer(CBuffer& buf) noexcept
 	{
 		char token[2048];
 		bool got;
@@ -496,7 +496,7 @@ private:
 			if (token[0] == '}')
 				break;
 
-			NewKeyValues* dat = CreateEntry(token);
+			ValveKeyValues* dat = CreateEntry(token);
 
 			// get the value
 			got = ReadToken(token, buf);
@@ -532,7 +532,7 @@ private:
 			}
 		}
 	}
-	void RecursiveSaveToBuffer(CBuffer& buf, int indentLevel)
+	void RecursiveSaveToBuffer(CBuffer& buf, int indentLevel) noexcept
 	{
 		WriteIndents(buf, indentLevel);
 		buf.Write("\"", 1);
@@ -541,7 +541,7 @@ private:
 		WriteIndents(buf, indentLevel);
 		buf.Write("{\n", 2);
 
-		for (NewKeyValues* dat = m_pSub; dat != nullptr; dat = dat->m_pPeer)
+		for (ValveKeyValues* dat = m_pSub; dat != nullptr; dat = dat->m_pPeer)
 		{
 			if (dat->m_pSub)
 			{
@@ -562,7 +562,7 @@ private:
 		buf.Write("}\n", 2);
 	}
 
-	void WriteIndents(CBuffer& buf, int indentLevel)
+	void WriteIndents(CBuffer& buf, int indentLevel) noexcept
 	{
 		for (int i = 0; i < indentLevel; ++i)
 		{
@@ -570,7 +570,7 @@ private:
 		}
 	}
 
-	void Init(void)
+	void Init(void) noexcept
 	{
 		if (m_pszName)
 		{
@@ -589,7 +589,7 @@ private:
 		m_pPeer = nullptr;
 		m_pSub = nullptr;
 	}
-	bool ReadToken(char* token, CBuffer& buf)
+	bool ReadToken(char* token, CBuffer& buf) noexcept
 	{
 		char* pw = token;
 		char ch;
@@ -642,6 +642,6 @@ private:
 	char* m_pszValue{ nullptr };
 	double m_flValue{ 0.0 };
 
-	NewKeyValues* m_pPeer{ nullptr };
-	NewKeyValues* m_pSub{ nullptr };
+	ValveKeyValues* m_pPeer{ nullptr };
+	ValveKeyValues* m_pSub{ nullptr };
 };

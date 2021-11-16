@@ -31,8 +31,7 @@
 *.out
 *.app
 
-**/Debug
-**/Release
+bin
 .vs
 .va
 imgui.ini

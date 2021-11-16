@@ -1,4 +1,6 @@
-module;
+/*
+* The helper file for STB working with OpenGL and ImGUI
+*/
 
 // C++
 #include <filesystem>
@@ -17,21 +19,19 @@ module;
 #define GL_CLAMP_TO_EDGE 0x812F	// Fucking windows GL.
 
 // STB library
-#define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"
 
 
-export module UtlImage;
 
-export struct Image_t
+struct Image_t
 {
 	GLuint	m_iTexId{ 0U };
 	int		m_iWidth{ 0 };
 	int		m_iHeight{ 0 };
 };
 
-export // Simple helper function to load an image into a OpenGL texture with common settings
-bool UTIL_LoadTextureFromFile(const char* filename, GLuint* piTextureIndex, int* piWidth, int* piHeight)
+// Simple helper function to load an image into a OpenGL texture with common settings
+inline bool UTIL_LoadTextureFromFile(const char* filename, GLuint* piTextureIndex, int* piWidth, int* piHeight)
 {
 	// Load from file
 	unsigned char* pBuffer = stbi_load(filename, piWidth, piHeight, NULL, 4);	// #MEM_ALLOC
@@ -65,14 +65,14 @@ namespace ImageLoader
 	using QueuedImage_t = std::tuple<fs::path, Image_t*>;
 	using QueueOfImage_t = std::list<QueuedImage_t>;
 
-	inline static QueueOfImage_t Queue{};	// #POTENTIAL_BUG
+	inline QueueOfImage_t Queue{};
 
-	bool Load(const fs::path& hPath, Image_t* pImage)
+	inline bool Load(const fs::path& hPath, Image_t* pImage) noexcept
 	{
 		return UTIL_LoadTextureFromFile(hPath.string().c_str(), &pImage->m_iTexId, &pImage->m_iWidth, &pImage->m_iHeight);
 	}
 
-	export bool Add(const fs::path& hPath, Image_t* pImage)
+	inline bool Add(const fs::path& hPath, Image_t* pImage) noexcept
 	{
 		if (!fs::exists(hPath))
 			return false;
@@ -84,7 +84,7 @@ namespace ImageLoader
 	/*
 	* The goal is to solve async problem when image fail loading while OpenGL is rendering.
 	*/
-	export void Execute(void)
+	inline void Execute(void) noexcept
 	{
 		for (auto iter = Queue.begin(); iter != Queue.end();)
 		{
@@ -97,7 +97,7 @@ namespace ImageLoader
 			}
 			else
 			{
-				iter++;
+				++iter;
 			}
 		}
 	}
