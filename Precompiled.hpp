@@ -200,6 +200,7 @@ using Names_t = std::list<Name_t>;
 using Resources_t = std::list<std::string>;
 using SkinThumbnails_t = std::unordered_map<std::string, Thumbnail_t>;
 using Tasks_t = std::list<Task_t>;
+using TemplateNames_t = std::list<std::string>;
 using Weapons_t = std::vector<std::string>;
 #pragma endregion Type Alias
 
@@ -738,7 +739,7 @@ struct BotProfile_t
 	int m_iSkill{ -1 };
 	int m_iTeamwork{ -1 };
 	int m_iVoicePitch{ -1 };
-	std::list<std::string> m_rgszRefTemplates{};	// Not in attrib
+	TemplateNames_t m_rgszRefTemplates{};	// Not in attrib
 	std::string m_szSkin{ "" };
 	std::string m_szTeam{ "" };
 	std::string m_szVoiceBank{ "" };
@@ -865,6 +866,10 @@ namespace BotProfileMgr
 	size_t TemplateNameCount(const std::string& szName) noexcept;	// Compare with actual name instead of entry name.
 
 	size_t ProfileNameCount(const std::string& szName) noexcept;
+
+	// Deduce the result after a set of succession.
+	template<size_t iOffset>
+	decltype(auto) Deduce(const TemplateNames_t& rgszTemplates, bool bIncludeDefault = true, const BotProfile_t** ppSource = nullptr) noexcept;
 };
 
 namespace MissionPack
@@ -964,6 +969,29 @@ namespace Gui
 
 		return pszResult;
 	};
+
+	template<bool bDynamic = false>
+	inline void fnErrorDialog(const char* pszTitle, const char* pszContent)
+	{
+		ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+		if (ImGui::BeginPopupModal(pszTitle, nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize))
+		{
+			const auto iModalContentWidth = ImGui::GetWindowContentRegionMax().x - ImGui::GetWindowContentRegionMin().x;
+
+			if constexpr (bDynamic)
+				ImGui::Text(pszContent);
+			else
+				ImGui::TextUnformatted(pszContent);
+
+			ImGui::NewLine();
+
+			ImGui::SetCursorPosX(iModalContentWidth / 2 - 60);
+			if (ImGui::Button("OK", ImVec2(120, 24)))
+				ImGui::CloseCurrentPopup();
+
+			ImGui::EndPopup();
+		}
+	}
 };
 
 namespace Gui::BotProfile
@@ -1464,6 +1492,37 @@ inline void BotProfile_t::Rationalize(void) noexcept
 	default:
 		std::cout << "Error in calling BotProfile_t::Rationalize() with reflection offset " << iOffset << ": Not a proper member.\n";
 	}
+}
+
+template<size_t iOffset>
+inline decltype(auto) BotProfileMgr::Deduce(const TemplateNames_t& rgszTemplates, bool bIncludeDefault, const BotProfile_t** ppSource) noexcept
+{
+	using namespace Reflection::BotProfile;
+
+	using T = TypeOf<iOffset>;
+
+	if (ppSource)
+		*ppSource = nullptr;
+
+	for (auto iter = rgszTemplates.rbegin(); iter != rgszTemplates.rend(); ++iter)	// From the last template to the first template.
+	{
+		BotProfile_t* pRef = &BotProfileMgr::m_Templates[*iter];
+
+		if (ppSource)
+			*ppSource = pRef;
+
+		if (pRef->AttribValid<iOffset>())
+			return reinterpret_cast<T*>(size_t(pRef) + iOffset);
+	}
+
+	if (!bIncludeDefault)
+		return (T*)nullptr;
+
+	if (ppSource)
+		*ppSource = &BotProfileMgr::m_Default;
+
+	// Don't forget 'Default' template. The last thing we can turn to.
+	return reinterpret_cast<T*>(size_t(&BotProfileMgr::m_Default) + iOffset);
 }
 
 #pragma endregion Templated Functions

@@ -379,7 +379,7 @@ export struct ValveKeyValues
 		}
 		else if constexpr (std::integral<T>)
 		{
-			return static_cast<T>(std::roundf(dat->m_flValue));
+			return static_cast<T>(std::round(dat->m_flValue));
 		}
 		else
 		{

@@ -12,6 +12,7 @@ static inline BotProfile_t BotCopy;
 static inline BotProfile_t* pBotProfOnEditing = nullptr;
 static inline WeaponSelMask_t rgbCanWpnEnlist;
 static inline bool bHandlingWithTemplates = false;
+static inline TemplateNames_t rgszTplNamesOnEditing;
 
 
 
@@ -63,7 +64,7 @@ static void fnAttrib(const std::pair<T, T>& iSteps = {}) noexcept
 	if (!bIsOptional && pszSanityRet && bValueValid)
 	{
 		ImGui::PopStyleColor();
-		szHintText += "\n\nIll-formed field.\nReason: "s + pszSanityRet;
+		szHintText += "\n\nField ill-formed.\nReason: "s + pszSanityRet;
 	}
 
 	// Do the hint outside the style change.
@@ -73,7 +74,7 @@ static void fnAttrib(const std::pair<T, T>& iSteps = {}) noexcept
 	{
 		ImGui::BeginTooltip();
 		ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
-		if (bValueValid)
+		if (!bValueValid)
 		{
 			ImGui::PushStyleColor(ImGuiCol_Text, (ImVec4)ImColor(156, 0, 6));
 			ImGui::Text("\"%s\" fields from this profile is invalidated.\nField will not be saved into file.\n\n", pszAttribName);
@@ -159,7 +160,7 @@ static void fnBitsAttrib(void) noexcept	// Specialize for m_bitsDifficulty
 	{
 		ImGui::BeginTooltip();
 		ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
-		if (bValueValid)
+		if (!bValueValid)
 		{
 			ImGui::PushStyleColor(ImGuiCol_Text, (ImVec4)ImColor(156, 0, 6));
 			ImGui::TextUnformatted("\"Difficulty\" fields from this profile is invalidated.\nField will not be saved into file.\n\n");
@@ -194,6 +195,7 @@ static void fnComboAttrib(void) noexcept	// Specialized for m_szTeam.
 	std::string*		pValue = bHandlingWithTemplates ? pBotProfOnEditing->GetSelf<TEAM>() : pBotProfOnEditing->Get<TEAM>(&pSource);
 	bool				bValueValid = pBotProfOnEditing->AttribValid<TEAM>();
 	std::string			szHintText = BotProfile_t::m_pszTeamIntro + "\n\nThis attribute is optional. Leave it blank if you don't know what to do."s;
+	const char*			pszSanityRet = pBotProfOnEditing->AttribSanity<TEAM>(bHandlingWithTemplates);
 
 	// No optional since this is absolutely a optional field.
 
@@ -221,6 +223,9 @@ static void fnComboAttrib(void) noexcept	// Specialized for m_szTeam.
 		ImGui::EndCombo();
 	}
 
+	if (pszSanityRet && bValueValid)
+		szHintText += "\n\nField ill-formed.\nReason: "s + pszSanityRet;
+
 	// Do the hint outside the style change.
 	ImGui::SameLine();
 	ImGui::TextDisabled("(?)");
@@ -228,7 +233,7 @@ static void fnComboAttrib(void) noexcept	// Specialized for m_szTeam.
 	{
 		ImGui::BeginTooltip();
 		ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
-		if (bValueValid)
+		if (!bValueValid)
 		{
 			ImGui::PushStyleColor(ImGuiCol_Text, (ImVec4)ImColor(156, 0, 6));
 			ImGui::TextUnformatted("\"Team\" fields from this profile is invalidated.\nField will not be saved into file.\n\n");
@@ -285,7 +290,7 @@ static void fnListAttrib(void) noexcept	// Specialized for m_rgszWpn
 	}
 
 	if (pszSanityRet)
-		szHintText += "\n\nIll-formed field.\nReason: "s + pszSanityRet;
+		szHintText += "\n\nField ill-formed.\nReason: "s + pszSanityRet;
 
 	// Print title 'Prefered Weapon' and (?) first.
 	ImGui::Text("Preferred Weapons:"); ImGui::SameLine();
@@ -325,7 +330,7 @@ static void fnListAttrib(void) noexcept	// Specialized for m_rgszWpn
 	{
 		ImGui::BeginTooltip();
 		ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
-		if (bValueValid)
+		if (!bValueValid)
 		{
 			ImGui::PushStyleColor(ImGuiCol_Text, (ImVec4)ImColor(156, 0, 6));
 			ImGui::TextUnformatted("\"WeaponPreference\" fields from this profile is invalidated.\nField will not be saved into file.\n\n");
@@ -420,6 +425,145 @@ static void fnListAttrib(void) noexcept	// Specialized for m_rgszWpn
 
 	if (!bValueValid)
 		ImGui::EndDisabled();
+}
+
+static void fnDisplayTemplateWithOverrideInfo(const TemplateNames_t& rgszTemplateList, const BotProfile_t& Tpl) noexcept
+{
+	using namespace Reflection::BotProfile;
+
+	if (Tpl.m_rgszWpnPreference.size() == 1 && !_stricmp(Tpl.m_rgszWpnPreference.front().c_str(), "none"))
+	{
+		auto pCur = BotProfileMgr::Deduce<WEAPON_PREFERENCE>(rgszTemplateList);
+
+		if (pCur->size() == 1 && !_stricmp(pCur->front().c_str(), "none"))
+			ImGui::BulletText("WeaponPreference: none");
+		else
+		{
+			ImGui::Bullet();
+			ImGui::TextColored(IMGUI_RED, "(Overrided) WeaponPreference: none");
+		}
+	}
+	else if (!Tpl.m_rgszWpnPreference.empty())
+	{
+		for (const auto& szWpn : Tpl.m_rgszWpnPreference)
+			ImGui::BulletText("WeaponPreference: %s", szWpn.c_str());
+	}
+	if (!Tpl.AttribSanity<ATTACK_DELAY>(true))
+	{
+		if (Tpl.m_flAttackDelay == *BotProfileMgr::Deduce<ATTACK_DELAY>(rgszTemplateList))
+			ImGui::BulletText("Attack Delay: %.2f", Tpl.m_flAttackDelay);
+		else
+		{
+			ImGui::Bullet();
+			ImGui::TextColored(IMGUI_RED, "(Overrided) Attack Delay: %.2f", Tpl.m_flAttackDelay);
+		}
+	}
+	if (!Tpl.AttribSanity<REACTION_TIME>(true))
+	{
+		if (Tpl.m_flReactionTime == *BotProfileMgr::Deduce<REACTION_TIME>(rgszTemplateList))
+			ImGui::BulletText("Reaction Time: %.2f", Tpl.m_flReactionTime);
+		else
+		{
+			ImGui::Bullet();
+			ImGui::TextColored(IMGUI_RED, "(Overrided) Reaction Time: %.2f", Tpl.m_flReactionTime);
+		}
+	}
+	if (!Tpl.AttribSanity<DIFFICULTY>(true))
+	{
+		for (auto i = Difficulty_e::EASY; i < Difficulty_e::_LAST; ++i)
+		{
+			if (Tpl.m_bitsDifficulty & (1 << i))
+			{
+				if (Tpl.m_bitsDifficulty == *BotProfileMgr::Deduce<DIFFICULTY>(rgszTemplateList))
+					ImGui::BulletText("Difficulty: %s", g_rgszDifficultyNames[(size_t)i]);
+				else
+				{
+					ImGui::Bullet();
+					ImGui::TextColored(IMGUI_RED, "(Overrided) Difficulty: %s", g_rgszDifficultyNames[(size_t)i]);
+				}
+			}
+		}
+	}
+	if (!Tpl.AttribSanity<AGGRESSION>(true))
+	{
+		if (Tpl.m_iAggression == *BotProfileMgr::Deduce<AGGRESSION>(rgszTemplateList))
+			ImGui::BulletText("Aggression: %d", Tpl.m_iAggression);
+		else
+		{
+			ImGui::Bullet();
+			ImGui::TextColored(IMGUI_RED, "(Overrided) Aggression: %d", Tpl.m_iAggression);
+		}
+	}
+	if (!Tpl.AttribSanity<COST>(true))
+	{
+		if (Tpl.m_iCost == *BotProfileMgr::Deduce<COST>(rgszTemplateList))
+			ImGui::BulletText("Cost: %d", Tpl.m_iCost);
+		else
+		{
+			ImGui::Bullet();
+			ImGui::TextColored(IMGUI_RED, "(Overrided) Cost: %d", Tpl.m_iCost);
+		}
+	}
+	if (!Tpl.AttribSanity<SKILL>(true))
+	{
+		if (Tpl.m_iSkill == *BotProfileMgr::Deduce<SKILL>(rgszTemplateList))
+			ImGui::BulletText("Skill: %d", Tpl.m_iSkill);
+		else
+		{
+			ImGui::Bullet();
+			ImGui::TextColored(IMGUI_RED, "(Overrided) Skill: %d", Tpl.m_iSkill);
+		}
+	}
+	if (!Tpl.AttribSanity<TEAMWORK>(true))
+	{
+		if (Tpl.m_iTeamwork == *BotProfileMgr::Deduce<TEAMWORK>(rgszTemplateList))
+			ImGui::BulletText("Teamwork: %d", Tpl.m_iTeamwork);
+		else
+		{
+			ImGui::Bullet();
+			ImGui::TextColored(IMGUI_RED, "(Overrided) Teamwork: %d", Tpl.m_iTeamwork);
+		}
+	}
+	if (!Tpl.AttribSanity<VOICEPITCH>(true))
+	{
+		if (Tpl.m_iVoicePitch == *BotProfileMgr::Deduce<VOICEPITCH>(rgszTemplateList))
+			ImGui::BulletText("Voice Pitch: %d", Tpl.m_iVoicePitch);
+		else
+		{
+			ImGui::Bullet();
+			ImGui::TextColored(IMGUI_RED, "(Overrided) Voice Pitch: %d", Tpl.m_iVoicePitch);
+		}
+	}
+	if (!Tpl.AttribSanity<SKIN>(true))
+	{
+		if (Tpl.m_szSkin == *BotProfileMgr::Deduce<SKIN>(rgszTemplateList))
+			ImGui::BulletText("Skin: %s", Tpl.m_szSkin.c_str());
+		else
+		{
+			ImGui::Bullet();
+			ImGui::TextColored(IMGUI_RED, "(Overrided) Skin: %s", Tpl.m_szSkin.c_str());
+		}
+	}
+	if (!Tpl.AttribSanity<TEAM>(true))
+	{
+		if (Tpl.m_szTeam == *BotProfileMgr::Deduce<TEAM>(rgszTemplateList))
+			ImGui::BulletText("Team: %s", Tpl.m_szTeam.c_str());
+		else
+		{
+			ImGui::Bullet();
+			ImGui::TextColored(IMGUI_RED, "(Overrided) Team: %s", Tpl.m_szTeam.c_str());
+		}
+	}
+	if (!Tpl.AttribSanity<VOICEBANK>(true))
+	{
+		if (Tpl.m_szVoiceBank == *BotProfileMgr::Deduce<VOICEBANK>(rgszTemplateList))
+			ImGui::BulletText("Voicebank: %s", Tpl.m_szVoiceBank.c_str());
+		else
+		{
+			ImGui::Bullet();
+			ImGui::TextColored(IMGUI_RED, "(Overrided) Voicebank: %s", Tpl.m_szVoiceBank.c_str());
+		}
+	}
 }
 
 void Gui::BotProfile::DrawWindow(void) noexcept
@@ -637,14 +781,133 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 				pBotProfOnEditing = &BotCopy;
 
 				bool bClickAdd = ImGui::Button("+", ImVec2(24, 24));
+				bool bNewCharacter = false;
+
+				if (BotProfileMgr::m_Templates.empty() && ImGui::IsItemHovered())
+					ImGui::SetTooltip("You have to add a template before adding any character!");
+
 				ImGui::SameLine();
 				Filter.Draw("Search");
 
-				if (bClickAdd)
+#pragma region Add Character
+				if (bClickAdd && !BotProfileMgr::m_Templates.empty())
 				{
-					//ImGui::OpenPopup("Add a character...");
-					BotCopy.Reset();
+					ImGui::OpenPopup("Add a character...");
+					rgszTplNamesOnEditing.clear();
 				}
+
+				if (ImGui::BeginPopupModal("Add a character...", nullptr, ImGuiWindowFlags_NoResize))
+				{
+					ImGui::SetWindowSize(ImVec2(240, 480));
+					auto iModalContentWidth = ImGui::GetWindowContentRegionMax().x - ImGui::GetWindowContentRegionMin().x;
+
+					ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 5.0f);
+					if (ImGui::BeginChild("Template hierarchy view", ImVec2(iModalContentWidth, 372), true, ImGuiWindowFlags_None))
+					{
+						// Place default on the top.
+						ImGui::Selectable("Default", true);
+						if (ImGui::IsItemHovered())
+						{
+							ImGui::BeginTooltip();
+
+							ImGui::PushStyleColor(ImGuiCol_Text, (ImVec4)ImColor(156, 0, 6));
+							ImGui::TextUnformatted("The \"Default\" template can never be deselected.\n\n");
+							ImGui::PopStyleColor();
+
+							fnDisplayTemplateWithOverrideInfo(rgszTplNamesOnEditing, BotProfileMgr::m_Default);
+
+							ImGui::EndTooltip();
+						}
+
+						// Selected items.
+						for (auto iter = rgszTplNamesOnEditing.begin(); iter != rgszTplNamesOnEditing.end(); /* Do nothing */)
+						{
+							// Delete from selected list.
+							if (ImGui::Selectable(iter->c_str(), true, ImGuiSelectableFlags_AllowDoubleClick) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+							{
+								iter = rgszTplNamesOnEditing.erase(iter);
+								continue;
+							}
+
+							// Hover & Info
+							if (ImGui::IsItemHovered())
+							{
+								ImGui::BeginTooltip();
+								fnDisplayTemplateWithOverrideInfo(rgszTplNamesOnEditing, BotProfileMgr::m_Templates[*iter]);
+								ImGui::EndTooltip();
+							}
+
+							// Drag and draw.
+							if (ImGui::IsItemActive() && !ImGui::IsItemHovered())
+							{
+								bool bMovingUp = (ImGui::GetMouseDragDelta(ImGuiMouseButton_Left).y < 0.f);
+								if (iter == rgszTplNamesOnEditing.begin() && bMovingUp)	// The first element shouldnot be able to moving up.
+									goto LAB_CONTINUE;
+
+								auto iterMovingTo = iter;
+								bMovingUp ? iterMovingTo-- : iterMovingTo++;
+
+								if (iterMovingTo == rgszTplNamesOnEditing.end())	// You can't moving to ... obliterate his name.
+									goto LAB_CONTINUE;
+
+								std::swap(*iter, *iterMovingTo);	// Have to dereference to actually swap.
+								ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
+							}
+
+						LAB_CONTINUE:;
+							++iter;
+						}
+
+						// Draw the rest.
+						for (const auto& [szName, Template] : BotProfileMgr::m_Templates)
+						{
+							if (std::find(rgszTplNamesOnEditing.begin(), rgszTplNamesOnEditing.end(), szName) != rgszTplNamesOnEditing.end())
+								continue;	// The name is selected. Skip it.
+
+							// Add template into generation.
+							if (ImGui::Selectable(szName.c_str(), false, ImGuiSelectableFlags_AllowDoubleClick) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+							{
+								rgszTplNamesOnEditing.emplace_back(szName);
+								continue;
+							}
+
+							// Hover & Info
+							if (ImGui::IsItemHovered())
+								Summary(&Template);
+						}
+					}
+
+					ImGui::EndChild();	// This one is special. Have to call ImGui::EndChild() either way.
+					ImGui::PopStyleVar();
+
+					// 'Yes"
+					ImGui::SetCursorPos(ImVec2(240 / 2 - 60, ImGui::GetWindowContentRegionMax().y - 60));
+					if (ImGui::Button("OK", ImVec2(120, 24)))
+					{
+						if (rgszTplNamesOnEditing.empty())
+							ImGui::OpenPopup("Error - Adding character");
+						else
+						{
+							BotProfileMgr::m_Profiles.emplace_back();
+							BotProfileMgr::m_Profiles.back().m_rgszRefTemplates = std::move(rgszTplNamesOnEditing);
+							ImGui::CloseCurrentPopup();
+
+							bNewCharacter = true;
+						}
+					}
+
+					// Error on save.
+					Gui::fnErrorDialog(
+						"Error - Adding character",
+						"You have to select another template besides \"Default\"!");
+
+					ImGui::SetCursorPos(ImVec2(240 / 2 - 60, ImGui::GetWindowContentRegionMax().y - 24));
+					if (ImGui::Button("Cancel", ImVec2(120, 24)))
+						ImGui::CloseCurrentPopup();
+
+					ImGui::EndPopup();
+				}
+#pragma endregion Add Character
 
 				constexpr ImGuiTableFlags bitsTableFlags = ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders | ImGuiTableFlags_Hideable;
 
@@ -652,15 +915,21 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 				{
 					for (auto itChar = g_BotProfiles.begin(); itChar != g_BotProfiles.end(); itChar++)
 					{
+						using namespace Reflection::BotProfile;
+
 						auto& Character = *itChar;
+
+						if (!Filter.PassFilter(Character.Get<NAME>()->c_str()))
+							continue;
 
 						ImGui::TableNextRow();
 						ImGui::TableSetColumnIndex(0);
 
 						Thumbnail_t* pPortrait = nullptr;
 
+						// There is no need to update the image library since all .tga images under /skin had been loaded.
 						// atoi() is better than stoi() since atoi would return 0 of it is not a number. #POTENTIAL_BUG assert that ctskin[] is as long as tskin[].
-						if (int iSkinIndex = std::atoi(Character.m_szSkin.c_str()); UTIL_GetStringType(Character.m_szSkin.c_str()) == 1 && iSkinIndex >= 0 && iSkinIndex < _countof(g_rgszCTSkinName))
+						if (int iSkinIndex = std::atoi(Character.Get<SKIN>()->c_str()); UTIL_GetStringType(Character.Get<SKIN>()->c_str()) == 1 && iSkinIndex >= 0 && iSkinIndex < _countof(g_rgszCTSkinName))
 						{
 							if (iSkinIndex == 0)
 								iSkinIndex = 6;	// 'Random' pic.
@@ -669,9 +938,9 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 							if (MissionPack::IsTeammate(Character.m_szName))
 								pPortrait = &BotProfileMgr::m_Thumbnails[g_rgszCTSkinName[iSkinIndex]];
 						}
-						else if (BotProfileMgr::m_Skins.contains(Character.m_szSkin) && BotProfileMgr::m_Thumbnails.contains(BotProfileMgr::m_Skins[Character.m_szSkin]))
+						else if (BotProfileMgr::m_Skins.contains(*Character.Get<SKIN>()) && BotProfileMgr::m_Thumbnails.contains(BotProfileMgr::m_Skins[Character.m_szSkin]))
 						{
-							pPortrait = &BotProfileMgr::m_Thumbnails[BotProfileMgr::m_Skins[Character.m_szSkin]];
+							pPortrait = &BotProfileMgr::m_Thumbnails[BotProfileMgr::m_Skins[*Character.Get<SKIN>()]];
 						}
 
 						bool bShouldEnterCharacterEditor = false;
@@ -730,22 +999,7 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 								}
 							}
 
-#pragma region Modal of Error
-							ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-
-							// Modal of error have to be draw before the end of the character editing dialog.
-							if (ImGui::BeginPopupModal("Error", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
-							{
-								ImGui::TextUnformatted(pszErrorMessage);	// It can't be nullptr or how do you get here?
-
-								float flWidth = ImGui::GetWindowWidth();
-								ImGui::SetCursorPosX((flWidth - 120.0f) / 2.0f);
-								if (ImGui::Button("OK", ImVec2(120, 0)))
-									ImGui::CloseCurrentPopup();
-
-								ImGui::EndPopup();
-							}
-#pragma endregion Modal of Error
+							Gui::fnErrorDialog("Error", pszErrorMessage);
 
 							ImGui::SetItemDefaultFocus();
 							ImGui::SameLine();
@@ -827,6 +1081,9 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 										BotCopy.m_rgszRefTemplates.emplace_back(szName);
 										BotCopy.Inherit();	// Update heritage data.
 									}
+
+									if (ImGui::IsItemHovered())
+										Summary(&Template);
 								}
 
 								ImGui::EndPopup();
@@ -835,151 +1092,13 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 							ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 5.0f);
 							ImGui::BeginChild("Template hierarchy view", ImVec2(iModalContentWidth, 340), true, ImGuiWindowFlags_None);
 
-							// Code reusage... so ugly...
-							auto fnDisplayTemplateWithOverrideInfo = [](BotProfile_t& Tpl)
-							{
-								if (Tpl.m_rgszWpnPreference.size() == 1 && !_stricmp(Tpl.m_rgszWpnPreference.front().c_str(), "none"))
-								{
-									auto pCur = BotCopy.Get<Reflection::BotProfile::WEAPON_PREFERENCE>();
-
-									if (pCur->size() == 1 && !_stricmp(pCur->front().c_str(), "none"))
-										ImGui::BulletText("WeaponPreference: none");
-									else
-									{
-										ImGui::Bullet();
-										ImGui::TextColored(IMGUI_RED, "(Overrided) WeaponPreference: none");
-									}
-								}
-								else if (!Tpl.m_rgszWpnPreference.empty())
-								{
-									for (const auto& szWpn : Tpl.m_rgszWpnPreference)
-										ImGui::BulletText("WeaponPreference: %s", szWpn.c_str());
-								}
-								if (Tpl.m_flAttackDelay >= 0)
-								{
-									if (Tpl.m_flAttackDelay == *BotCopy.Get<Reflection::BotProfile::ATTACK_DELAY>())
-										ImGui::BulletText("Attack Delay: %.2f", Tpl.m_flAttackDelay);
-									else
-									{
-										ImGui::Bullet();
-										ImGui::TextColored(IMGUI_RED, "(Overrided) Attack Delay: %.2f", Tpl.m_flAttackDelay);
-									}
-								}
-								if (Tpl.m_flReactionTime >= 0)
-								{
-									if (Tpl.m_flReactionTime == *BotCopy.Get<Reflection::BotProfile::REACTION_TIME>())
-										ImGui::BulletText("Reaction Time: %.2f", Tpl.m_flReactionTime);
-									else
-									{
-										ImGui::Bullet();
-										ImGui::TextColored(IMGUI_RED, "(Overrided) Reaction Time: %.2f", Tpl.m_flReactionTime);
-									}
-								}
-								if (Tpl.m_bitsDifficulty > 0)
-								{
-									for (auto i = Difficulty_e::EASY; i < Difficulty_e::_LAST; ++i)
-									{
-										if (Tpl.m_bitsDifficulty & (1 << i))
-										{
-											if (Tpl.m_bitsDifficulty == *BotCopy.Get<Reflection::BotProfile::DIFFICULTY>())
-												ImGui::BulletText("Difficulty: %s", g_rgszDifficultyNames[(size_t)i]);
-											else
-											{
-												ImGui::Bullet();
-												ImGui::TextColored(IMGUI_RED, "(Overrided) Difficulty: %s", g_rgszDifficultyNames[(size_t)i]);
-											}
-										}
-									}
-								}
-								if (Tpl.m_iAggression >= 0 && Tpl.m_iAggression <= 100)
-								{
-									if (Tpl.m_iAggression == *BotCopy.Get<Reflection::BotProfile::AGGRESSION>())
-										ImGui::BulletText("Aggression: %d", Tpl.m_iAggression);
-									else
-									{
-										ImGui::Bullet();
-										ImGui::TextColored(IMGUI_RED, "(Overrided) Aggression: %d", Tpl.m_iAggression);
-									}
-								}
-								if (Tpl.m_iCost >= 1 && Tpl.m_iCost <= 5)
-								{
-									if (Tpl.m_iCost == *BotCopy.Get<Reflection::BotProfile::COST>())
-										ImGui::BulletText("Cost: %d", Tpl.m_iCost);
-									else
-									{
-										ImGui::Bullet();
-										ImGui::TextColored(IMGUI_RED, "(Overrided) Cost: %d", Tpl.m_iCost);
-									}
-								}
-								if (Tpl.m_iSkill >= 0 && Tpl.m_iSkill <= 100)
-								{
-									if (Tpl.m_iSkill == *BotCopy.Get<Reflection::BotProfile::SKILL>())
-										ImGui::BulletText("Skill: %d", Tpl.m_iSkill);
-									else
-									{
-										ImGui::Bullet();
-										ImGui::TextColored(IMGUI_RED, "(Overrided) Skill: %d", Tpl.m_iSkill);
-									}
-								}
-								if (Tpl.m_iTeamwork >= 0 && Tpl.m_iTeamwork <= 100)
-								{
-									if (Tpl.m_iTeamwork == *BotCopy.Get<Reflection::BotProfile::TEAMWORK>())
-										ImGui::BulletText("Teamwork: %d", Tpl.m_iTeamwork);
-									else
-									{
-										ImGui::Bullet();
-										ImGui::TextColored(IMGUI_RED, "(Overrided) Teamwork: %d", Tpl.m_iTeamwork);
-									}
-								}
-								if (Tpl.m_iVoicePitch > 0)
-								{
-									if (Tpl.m_iVoicePitch == *BotCopy.Get<Reflection::BotProfile::VOICEPITCH>())
-										ImGui::BulletText("Voice Pitch: %d", Tpl.m_iVoicePitch);
-									else
-									{
-										ImGui::Bullet();
-										ImGui::TextColored(IMGUI_RED, "(Overrided) Voice Pitch: %d", Tpl.m_iVoicePitch);
-									}
-								}
-								if (Tpl.AttribSanity<Reflection::BotProfile::SKIN>(true))
-								{
-									if (Tpl.m_szSkin == *BotCopy.Get<Reflection::BotProfile::SKIN>())
-										ImGui::BulletText("Skin: %s", Tpl.m_szSkin.c_str());
-									else
-									{
-										ImGui::Bullet();
-										ImGui::TextColored(IMGUI_RED, "(Overrided) Skin: %s", Tpl.m_szSkin.c_str());
-									}
-								}
-								if (Tpl.AttribSanity<Reflection::BotProfile::TEAM>(true))
-								{
-									if (Tpl.m_szTeam == *BotCopy.Get<Reflection::BotProfile::TEAM>())
-										ImGui::BulletText("Team: %s", Tpl.m_szTeam.c_str());
-									else
-									{
-										ImGui::Bullet();
-										ImGui::TextColored(IMGUI_RED, "(Overrided) Team: %s", Tpl.m_szTeam.c_str());
-									}
-								}
-								if (Tpl.AttribSanity<Reflection::BotProfile::VOICEBANK>(true))
-								{
-									if (Tpl.m_szVoiceBank == *BotCopy.Get<Reflection::BotProfile::VOICEBANK>())
-										ImGui::BulletText("Voicebank: %s", Tpl.m_szVoiceBank.c_str());
-									else
-									{
-										ImGui::Bullet();
-										ImGui::TextColored(IMGUI_RED, "(Overrided) Voicebank: %s", Tpl.m_szVoiceBank.c_str());
-									}
-								}
-							};
-
 							// Show the situation of Default.
 							bool bTreeNodeExpanded = ImGui::TreeNode("Default##TemplateInfo");
 							if (ImGui::IsItemHovered())
 								ImGui::SetTooltip("All characters have to inherit from Default.\nYou cannot reorder, delete or edit this one.");
 							if (bTreeNodeExpanded)
 							{
-								fnDisplayTemplateWithOverrideInfo(BotProfileMgr::m_Default);
+								fnDisplayTemplateWithOverrideInfo(BotCopy.m_rgszRefTemplates, BotProfileMgr::m_Default);
 								ImGui::TreePop();
 							}
 
@@ -1033,7 +1152,7 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 								// Template value preview.
 								if (bTreeNodeExpanded)
 								{
-									fnDisplayTemplateWithOverrideInfo(Template);
+									fnDisplayTemplateWithOverrideInfo(BotCopy.m_rgszRefTemplates, Template);
 									ImGui::TreePop();
 								}
 
@@ -1065,19 +1184,9 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 							}
 
 							// Error on save.
-							ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-							if (ImGui::BeginPopupModal("Error - Template Selection", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize))
-							{
-								auto iModalContentWidth = ImGui::GetWindowContentRegionMax().x - ImGui::GetWindowContentRegionMin().x;
-
-								ImGui::Text("Every character have to derive from at least one template!");
-
-								ImGui::SetCursorPosX(iModalContentWidth / 2 - 60);
-								if (ImGui::Button("OK", ImVec2(120, 24)))
-									ImGui::CloseCurrentPopup();
-
-								ImGui::EndPopup();
-							}
+							Gui::fnErrorDialog(
+								"Error - Template Selection",
+								"Every character have to derive from at least one template!");
 
 							ImGui::SetCursorPos(ImVec2(240 / 2 - 60, ImGui::GetWindowContentRegionMax().y - 24));
 							if (ImGui::Button("Cancel", ImVec2(120, 24)))
@@ -1088,13 +1197,13 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 #pragma endregion CharacterTemplateModal
 
 						ImGui::SameLine();
-						ImGui::TextDisabled("Cost %d", Character.m_iCost);
+						ImGui::TextDisabled("Cost %d", *Character.Get<COST>());
 
 						float flY = vecPos.y + 22;	// Save the line 1 Y coord of this table.
 
-						int iSkill = *Character.Get<Reflection::BotProfile::SKILL>();
-						int iTeamwork = *Character.Get<Reflection::BotProfile::TEAMWORK>();
-						int iAggression = *Character.Get<Reflection::BotProfile::AGGRESSION>();
+						int iSkill = *Character.Get<SKILL>();
+						int iTeamwork = *Character.Get<TEAMWORK>();
+						int iAggression = *Character.Get<AGGRESSION>();
 
 						vecPos.y += 22; ImGui::SetCursorPos(vecPos);
 						ImGui::TextColored(iSkill > 66 ? IMGUI_GREEN : iSkill > 33 ? IMGUI_YELLOW : IMGUI_RED, "Skill: %d", iSkill);
@@ -1109,6 +1218,9 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 						vecPos.y += 22; ImGui::SetCursorPos(vecPos);
 						ImGui::Text("Preference: %s", Character.GetPreferedWpn());
 					}
+
+					if (bNewCharacter)
+						ImGui::SetScrollHereY(1.0f);
 
 					ImGui::EndTable();
 				}
@@ -1127,7 +1239,7 @@ void Gui::BotProfile::Summary(const BotProfile_t* pProfile) noexcept
 {
 	using namespace Reflection::BotProfile;
 
-	ImGui::BeginTooltip();
+	ImGui::BeginTooltip();	// #TODO_REMOVE_THIS_FROM_TOOL_TIP
 
 	//if (pProfile->AttribValid<NAME>())
 	//	ImGui::BulletText("%s: %s", BotProfile_t::GetAttribName<NAME>(), pProfile->m_szName.c_str());
