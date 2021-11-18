@@ -9,15 +9,13 @@ import UtlString;
 
 void Task_t::Parse(const std::string& sz) noexcept
 {
-	std::vector<std::string> rgszTokens(5, ""s);
+	std::list<std::string> rgszTokens;
 	UTIL_Split(sz, rgszTokens, " "s);
-
-	auto iArgCount = rgszTokens.size();
 
 	// Identify task.
 	for (m_iType = (TaskType_e)0; m_iType < _countof(g_rgszTaskNames); ++m_iType)
 	{
-		if (!_stricmp(rgszTokens[0].c_str(), g_rgszTaskNames[(unsigned)m_iType]))
+		if (!_stricmp(rgszTokens.front().c_str(), g_rgszTaskNames[(unsigned)m_iType]))
 			break;
 	}
 

@@ -580,7 +580,7 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 	{
 		if (ImGui::BeginTabBar("TabBar_BOT", ImGuiTabBarFlags_None))
 		{
-			if (ImGui::BeginTabItem("Default"))
+			if (ImGui::BeginTabItem("Default", nullptr, m_iSetTab == TAB_DEFAULT ? ImGuiTabItemFlags_SetSelected : 0))
 			{
 				using namespace Reflection::BotProfile;
 				using namespace std;
@@ -604,7 +604,7 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 				ImGui::EndTabItem();
 			}
 
-			if (ImGui::BeginTabItem("Templates"))
+			if (ImGui::BeginTabItem("Templates", nullptr, m_iSetTab == TAB_TEMPLATES ? ImGuiTabItemFlags_SetSelected : 0))
 			{
 				pBotProfOnEditing = &BotCopy;
 				bHandlingWithTemplates = true;
@@ -666,24 +666,76 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 					ImGui::EndPopup();
 				}
 
-				for (auto& [szName, Template] : BotProfileMgr::m_Templates)
+				for (auto itTplPair = BotProfileMgr::m_Templates.begin(); itTplPair != BotProfileMgr::m_Templates.end(); /* Do nothing */ )
 				{
+					auto& szName = itTplPair->first;
+					auto& Template = itTplPair->second;
+					bool bOpenErrorWindow = false;
+
 					if (!Filter.PassFilter(szName.c_str()))
-						continue;
+						goto LAB_TEMPLATE_MAIN_LOOP_CONTINUE;
 
 					if (ImGui::Selectable(szName.c_str()))
 					{
-						ImGui::OpenPopup(szName.c_str());
+						ImGui::OpenPopup(UTIL_VarArgs("Editing: %s", szName.c_str()));
 						BotCopy = Template;
 					}
 
 					if (ImGui::IsItemHovered())
+					{
+						ImGui::BeginTooltip();
 						Summary(&Template);
+						ImGui::EndTooltip();
+					}
+
+					if (ImGui::BeginPopupContextItem())
+					{
+						if (ImGui::MenuItem(UTIL_VarArgs("Delete template \"%s\"", szName.c_str())))
+						{
+							if (BotProfileMgr::TemplateOccupied(Template))
+								bOpenErrorWindow = true;
+							else
+							{
+								itTplPair = BotProfileMgr::m_Templates.erase(itTplPair);
+								ImGui::EndPopup();
+								continue;
+							}
+						}
+
+						ImGui::EndPopup();
+					}
+
+					if (bOpenErrorWindow)	// Fuck ImGui. Why the id stack is even a thing? This is so ugly.
+						ImGui::OpenPopup(UTIL_VarArgs("Error##%s", szName.c_str()));
+
+					ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+
+					// Modal: Cannot delete
+					if (ImGui::BeginPopupModal(UTIL_VarArgs("Error##%s", szName.c_str()), nullptr, ImGuiWindowFlags_NoResize))
+					{
+						const auto iModalContentWidth = ImGui::GetWindowContentRegionMax().x - ImGui::GetWindowContentRegionMin().x;
+
+						ImGui::TextUnformatted("You may not delete the template because the following Characters are refering it:\n");
+						
+						for (const auto& Character : g_BotProfiles)
+						{
+							if (std::find(Character.m_rgszRefTemplates.begin(), Character.m_rgszRefTemplates.end(), szName) != Character.m_rgszRefTemplates.end())
+								ImGui::BulletText(Character.m_szName.c_str());
+						}
+
+						ImGui::NewLine();
+
+						ImGui::SetCursorPosX(iModalContentWidth / 2 - 60);
+						if (ImGui::Button("OK", ImVec2(120, 24)))
+							ImGui::CloseCurrentPopup();
+
+						ImGui::EndPopup();
+					}
 
 					ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 
 					// Template editing modal.
-					if (ImGui::BeginPopupModal(szName.c_str()))
+					if (ImGui::BeginPopupModal(UTIL_VarArgs("Editing: %s", szName.c_str())))
 					{
 						using namespace Reflection::BotProfile;
 						using namespace std;
@@ -727,6 +779,9 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 
 						ImGui::EndPopup();
 					}
+
+				LAB_TEMPLATE_MAIN_LOOP_CONTINUE:;
+					++itTplPair;
 				}
 
 				// (Modal) Error on naming.
@@ -775,7 +830,7 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 				ImGui::EndTabItem();
 			}
 
-			if (ImGui::BeginTabItem("Characters"))
+			if (ImGui::BeginTabItem("Characters", nullptr, m_iSetTab == TAB_CHARACTERS ? ImGuiTabItemFlags_SetSelected : 0))
 			{
 				bHandlingWithTemplates = false;
 				pBotProfOnEditing = &BotCopy;
@@ -873,7 +928,11 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 
 							// Hover & Info
 							if (ImGui::IsItemHovered())
+							{
+								ImGui::BeginTooltip();
 								Summary(&Template);
+								ImGui::EndTooltip();
+							}
 						}
 					}
 
@@ -913,14 +972,17 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 
 				if (ImGui::BeginTable("TableOfBots", 1, bitsTableFlags))
 				{
-					for (auto itChar = g_BotProfiles.begin(); itChar != g_BotProfiles.end(); itChar++)
+					for (auto itChar = g_BotProfiles.begin(); itChar != g_BotProfiles.end(); /* Do nothing */)
 					{
 						using namespace Reflection::BotProfile;
 
 						auto& Character = *itChar;
 
 						if (!Filter.PassFilter(Character.Get<NAME>()->c_str()))
+						{
+							++itChar;
 							continue;
+						}
 
 						ImGui::TableNextRow();
 						ImGui::TableSetColumnIndex(0);
@@ -948,9 +1010,43 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 						if (pPortrait)
 							bShouldEnterCharacterEditor = ImGui::ImageButton((void*)(intptr_t)pPortrait->m_iTexId, pPortrait->Size());
 						else
-							bShouldEnterCharacterEditor = ImGui::Button(UTIL_VarArgs("No Portrait##%s", Character.m_szName.c_str()), ImVec2(128, 128));
+							bShouldEnterCharacterEditor = ImGui::Button(UTIL_VarArgs("No Portrait##%s", Character.m_szName.c_str()), ImVec2(96, 96));
 						ImGui::PopID();
 						ImGui::SameLine();
+
+#pragma region Deletion
+						if (ImGui::BeginPopupContextItem(UTIL_VarArgs("Delete%s", Character.m_szName.c_str())))
+						{
+							if (ImGui::MenuItem(UTIL_VarArgs("Delete character \"%s\"", Character.m_szName.c_str())))
+							{
+								itChar = g_BotProfiles.erase(itChar);
+
+								// Delete the name in the campaign config as well.
+								for (auto& [iDifficulty, CareerGame] : MissionPack::CareerGames)
+								{
+									if (auto iter = std::find(CareerGame.m_rgszCharacters.begin(), CareerGame.m_rgszCharacters.end(), itChar->m_szName);
+										iter != CareerGame.m_rgszCharacters.end())
+									{
+										CareerGame.m_rgszCharacters.erase(iter);
+									}
+
+									for (auto& Locus : CareerGame.m_Loci)
+									{
+										if (auto iter = std::find(Locus.m_rgszBots.begin(), Locus.m_rgszBots.end(), itChar->m_szName);
+											iter != Locus.m_rgszBots.end())
+										{
+											Locus.m_rgszBots.erase(iter);
+										}
+									}
+								}
+
+								ImGui::EndPopup();
+								continue;
+							}
+
+							ImGui::EndPopup();
+						}
+#pragma endregion Deletion
 
 #pragma region CharacterEditingModal
 						if (bShouldEnterCharacterEditor)
@@ -1083,7 +1179,11 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 									}
 
 									if (ImGui::IsItemHovered())
+									{
+										ImGui::BeginTooltip();
 										Summary(&Template);
+										ImGui::EndTooltip();
+									}
 								}
 
 								ImGui::EndPopup();
@@ -1217,6 +1317,8 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 
 						vecPos.y += 22; ImGui::SetCursorPos(vecPos);
 						ImGui::Text("Preference: %s", Character.GetPreferedWpn());
+
+						++itChar;
 					}
 
 					if (bNewCharacter)
@@ -1228,6 +1330,7 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 				ImGui::EndTabItem();
 			}
 
+			m_iSetTab = TAB_UNSET;
 			ImGui::EndTabBar();
 		}
 	}
@@ -1237,9 +1340,10 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 
 void Gui::BotProfile::Summary(const BotProfile_t* pProfile) noexcept
 {
-	using namespace Reflection::BotProfile;
+	if (!pProfile)
+		return;
 
-	ImGui::BeginTooltip();	// #TODO_REMOVE_THIS_FROM_TOOL_TIP
+	using namespace Reflection::BotProfile;
 
 	//if (pProfile->AttribValid<NAME>())
 	//	ImGui::BulletText("%s: %s", BotProfile_t::GetAttribName<NAME>(), pProfile->m_szName.c_str());
@@ -1281,13 +1385,19 @@ void Gui::BotProfile::Summary(const BotProfile_t* pProfile) noexcept
 		ImGui::BulletText("%s: %d", BotProfile_t::GetAttribName<VOICEPITCH>(), pProfile->m_iVoicePitch);
 
 	if (pProfile->AttribValid<SKIN>())
-		ImGui::BulletText("%s: %s", BotProfile_t::GetAttribName<SKIN>(), pProfile->m_szSkin.c_str());
+	{
+		if (UTIL_GetStringType(pProfile->m_szSkin.c_str()) == 1)	// int
+		{
+			const auto iSkin = std::atoi(pProfile->m_szSkin.c_str());
+			ImGui::BulletText("%s: %s (%d)", BotProfile_t::GetAttribName<SKIN>(), MissionPack::IsTeammate(pProfile->m_szName) ? g_rgszCTSkinName[iSkin] : g_rgszTSkinName[iSkin], iSkin);
+		}
+		else
+			ImGui::BulletText("%s: %s", BotProfile_t::GetAttribName<SKIN>(), pProfile->m_szSkin.c_str());
+	}
 
 	if (pProfile->AttribValid<TEAM>())
 		ImGui::BulletText("%s: %s", BotProfile_t::GetAttribName<TEAM>(), pProfile->m_szTeam.c_str());
 
 	if (pProfile->AttribValid<VOICEBANK>())
 		ImGui::BulletText("%s: %s", BotProfile_t::GetAttribName<VOICEBANK>(), pProfile->m_szVoiceBank.c_str());
-
-	ImGui::EndTooltip();
 }

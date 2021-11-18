@@ -800,3 +800,25 @@ size_t BotProfileMgr::ProfileNameCount(const std::string& szName) noexcept
 
 	return iRet;
 }
+
+BotProfile_t* BotProfileMgr::Find(const std::string& szName) noexcept
+{
+	for (auto& Character : m_Profiles)
+	{
+		if (Character.m_szName == szName)
+			return &Character;
+	}
+
+	return nullptr;
+}
+
+bool BotProfileMgr::TemplateOccupied(const BotProfile_t& Tpl) noexcept
+{
+	for (const auto& Character : m_Profiles)
+	{
+		if (std::find(Character.m_rgszRefTemplates.begin(), Character.m_rgszRefTemplates.end(), Tpl.m_szName) != Character.m_rgszRefTemplates.end())
+			return true;
+	}
+
+	return false;
+}

@@ -870,6 +870,11 @@ namespace BotProfileMgr
 	// Deduce the result after a set of succession.
 	template<size_t iOffset>
 	decltype(auto) Deduce(const TemplateNames_t& rgszTemplates, bool bIncludeDefault = true, const BotProfile_t** ppSource = nullptr) noexcept;
+
+	// Find a profile.
+	BotProfile_t* Find(const std::string& szName) noexcept;
+
+	bool TemplateOccupied(const BotProfile_t& Tpl) noexcept;
 };
 
 namespace MissionPack
@@ -925,7 +930,8 @@ namespace Maps	// This is the game map instead of career quest 'Locus_t'!
 
 namespace Gui
 {
-	const auto fnWeaponMenu = []<typename... Tys> requires all_same_as<WeaponSelMask_t, Tys...>(const Tys&... rgbMask) -> const char*
+	template<typename... Tys>
+	const char* fnWeaponMenu(const Tys&... rgbMask) requires all_same_as<WeaponSelMask_t, Tys...>
 	{
 		const char* pszResult = nullptr;
 		bool bEmptyCategory = true;
@@ -996,6 +1002,15 @@ namespace Gui
 
 namespace Gui::BotProfile
 {
+	inline enum : short
+	{
+		TAB_UNSET = -1,
+		TAB_DEFAULT,
+		TAB_TEMPLATES,
+		TAB_CHARACTERS
+	}
+	m_iSetTab;
+
 	inline ImGuiTextFilter Filter;	// Call Build() after manually edits it.
 
 	void DrawWindow(void) noexcept;

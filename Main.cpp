@@ -1,9 +1,10 @@
 #include "Precompiled.hpp"
 
+
 import UtlKeyValues;
 import UtlString;
 
-#pragma region GUI
+
 void ListKeyValue(ValveKeyValues* pkv)
 {
 	if (!pkv)
@@ -267,9 +268,16 @@ void CampaignWindow(void)
 				if (ImGui::CollapsingHeader("Characters", ImGuiTreeNodeFlags_None))
 				{
 					// Enlist all characters in current difficulty.
-					for (auto iter = CareerGame.m_rgszCharacters.begin(); iter != CareerGame.m_rgszCharacters.end(); ++iter)
+					for (auto iter = CareerGame.m_rgszCharacters.begin(); iter != CareerGame.m_rgszCharacters.end(); /* Do nothing */ )
 					{
-						ImGui::Selectable(iter->c_str());	// #TODO jump tp BOT editing screen.
+						if (ImGui::Selectable(iter->c_str()))
+						{
+							g_bShowBotsWindow = true;
+							Gui::BotProfile::m_iSetTab = Gui::BotProfile::TAB_CHARACTERS;
+							strcpy_s(Gui::BotProfile::Filter.InputBuf, iter->c_str());
+							Gui::BotProfile::Filter.Build();
+							ImGui::SetWindowFocus("BOTs");
+						}
 
 						// Right-click the name.
 						if (ImGui::BeginPopupContextItem())
@@ -286,31 +294,40 @@ void CampaignWindow(void)
 							else if (ImGui::Selectable(UTIL_VarArgs("Rule out %s", iter->c_str())))
 							{
 								iter = CareerGame.m_rgszCharacters.erase(iter);
-								iter--;	// So we can iter++ later in the for loop.
+								goto LAB_SKIP_INCREMENT;
 							}
 
 							ImGui::EndPopup();
 						}
 
 						if (ImGui::IsItemHovered())
-							ImGui::SetTooltip("Right-click to edit.\nDraw and draw item to reorder.");
+						{
+							ImGui::BeginTooltip();
+							ImGui::TextUnformatted("Right-click to edit.\nDraw and draw item to reorder.\n");
+							Gui::BotProfile::Summary(BotProfileMgr::Find(*iter));
+							ImGui::EndTooltip();
+						}
 
 						// Drag and draw.
 						if (ImGui::IsItemActive() && !ImGui::IsItemHovered())
 						{
 							bool bMovingUp = (ImGui::GetMouseDragDelta(ImGuiMouseButton_Left).y < 0.f);
 							if (iter == CareerGame.m_rgszCharacters.begin() && bMovingUp)	// The first element shouldnot be able to moving up.
-								continue;
+								goto LAB_CONTINUE;
 
 							auto iterMovingTo = iter;
 							bMovingUp ? iterMovingTo-- : iterMovingTo++;
 
 							if (iterMovingTo == CareerGame.m_rgszCharacters.end())	// You can't moving to ... obliterate his name.
-								continue;
+								goto LAB_CONTINUE;
 
 							std::swap(*iter, *iterMovingTo);	// Have to dereference to actually swap.
 							ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
 						}
+
+					LAB_CONTINUE:;
+						++iter;
+					LAB_SKIP_INCREMENT:;
 					}
 
 #pragma region Character insertion modal
@@ -329,23 +346,13 @@ void CampaignWindow(void)
 						{
 							for (const auto& Character : g_BotProfiles)
 							{
-								auto it = std::find_if(CareerGame.m_rgszCharacters.begin(), CareerGame.m_rgszCharacters.end(),
-									[&Character](const std::string& szName)
-									{
-										return szName == Character.m_szName;
-									}
-								);
+								auto it = std::find(CareerGame.m_rgszCharacters.begin(), CareerGame.m_rgszCharacters.end(), Character.m_szName);
 
 								bool bAlreadyEnrolled = it != CareerGame.m_rgszCharacters.end();
 								if (bAlreadyEnrolled)
 									continue;
 
-								it = std::find_if(InsertionModal.m_Enrolled.begin(), InsertionModal.m_Enrolled.end(),
-									[&Character](const std::string& szName)
-									{
-										return szName == Character.m_szName;
-									}
-								);
+								it = std::find(InsertionModal.m_Enrolled.begin(), InsertionModal.m_Enrolled.end(), Character.m_szName);
 
 								bAlreadyEnrolled = it != InsertionModal.m_Enrolled.end();
 
@@ -574,23 +581,10 @@ void LocusWindow(void)
 							{
 								for (const auto& Character : g_BotProfiles)
 								{
-									if (std::find_if(BotTeammates.begin(), BotTeammates.end(),
-										[&Character](const Name_t& szOther)
-										{
-											return szOther == Character.m_szName;
-										}
-									) != BotTeammates.end())
-									{
+									if (std::find(BotTeammates.begin(), BotTeammates.end(), Character.m_szName) != BotTeammates.end())
 										continue;	// Skip drawing if our candidate is our potential teammate.
-									}
 
-									auto it = std::find_if(LocusCopy.m_rgszBots.begin(), LocusCopy.m_rgszBots.end(),
-										[&Character](const Name_t& szOther)
-										{
-											return szOther == Character.m_szName;
-										}
-									);
-
+									auto it = std::find(LocusCopy.m_rgszBots.begin(), LocusCopy.m_rgszBots.end(), Character.m_szName);
 									bool bEnrolled = it != LocusCopy.m_rgszBots.end();
 
 									if (ImGui::Selectable(Character.m_szName.c_str(), bEnrolled))
@@ -599,6 +593,13 @@ void LocusWindow(void)
 											LocusCopy.m_rgszBots.erase(it);
 										else
 											LocusCopy.m_rgszBots.emplace_back(Character.m_szName);
+									}
+
+									if (ImGui::IsItemHovered())
+									{
+										ImGui::BeginTooltip();
+										Gui::BotProfile::Summary(&Character);
+										ImGui::EndTooltip();
 									}
 								}
 
@@ -826,7 +827,6 @@ void MapsWindow(void)
 	ImGui::End();
 }
 
-#pragma endregion GUI
 
 
 
