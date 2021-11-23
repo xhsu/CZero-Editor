@@ -252,10 +252,18 @@ void CampaignWindow(void)
 				if (!fs::exists(MissionPack::Files[i + MissionPack::FILE_EASY]))
 					continue;
 
-				if (!ImGui::BeginTabItem(g_rgszDifficultyNames[(size_t)i]))
+				if (!ImGui::BeginTabItem(g_rgszDifficultyNames[(size_t)i], nullptr, (g_iSetDifficulty == i) ? ImGuiTabItemFlags_SetSelected : ImGuiTabItemFlags_None))
 					continue;
 
-				MissionPack::CurBrowsing = i;	// Switched to this tab.
+				Gui::MissionPack::LastBrowsing = Gui::MissionPack::CurBrowsing;
+				Gui::MissionPack::CurBrowsing = i;
+				Gui::CheckDifficultySync();
+
+				// Tab switched!
+				// #POTENTIAL_BUG recursing once.
+				if (Gui::MissionPack::LastBrowsing != Gui::MissionPack::CurBrowsing)
+					g_iSetDifficulty = Gui::MissionPack::CurBrowsing;
+
 				auto& CareerGame = MissionPack::CareerGames[i];
 
 				if (ImGui::CollapsingHeader("Generic", ImGuiTreeNodeFlags_DefaultOpen))
@@ -467,370 +475,21 @@ void CampaignWindow(void)
 	ImGui::End();
 }
 
-void LocusWindow(void)
+
+
+
+
+
+void Gui::CheckDifficultySync(void) noexcept
 {
-	if (g_bitsAsyncStatus & (Async_e::UPDATING_MISSION_PACK_INFO | Async_e::UPDATING_MAPS_INFO) || !g_bShowLociWindow)	// The drawing is using map thumbnail.
-		return;
-
-	const std::unique_lock Lock1(MissionPack::Mutex, std::try_to_lock);
-	const std::unique_lock Lock2(Maps::Mutex, std::try_to_lock);
-	if (!Lock1.owns_lock() || !Lock2.owns_lock())
-		return;
-
-	if (ImGui::Begin("Loci", &g_bShowLociWindow, ImGuiWindowFlags_NoResize))
+	if (
+		g_iSetDifficulty == Gui::Locations::CurBrowsing
+		&& g_iSetDifficulty == Gui::MissionPack::CurBrowsing
+		)
 	{
-		constexpr ImGuiTableFlags bitsTableFlags = ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders | ImGuiTableFlags_Hideable | ImGuiTableFlags_NoBordersInBody;
-		const auto vecSize = ImVec2(128 * 3 + 48, ImGui::GetTextLineHeightWithSpacing() * 3 + 128 * 3);
-		const auto vecWindowSize = ImVec2(vecSize.x + 16, vecSize.y + 70);
-
-		ImGui::SetWindowSize(vecWindowSize);
-
-		if (ImGui::BeginTabBar("TabBar: Loci", ImGuiTabBarFlags_None))
-		{
-			for (auto i = Difficulty_e::EASY; i < Difficulty_e::_LAST; ++i)
-			{
-				if (!fs::exists(MissionPack::Files[i + MissionPack::FILE_EASY]))
-					continue;
-
-				if (!ImGui::BeginTabItem(g_rgszDifficultyNames[(size_t)i]))
-					continue;
-
-				auto& CareerGame = MissionPack::CareerGames[i];
-				auto& szCurDifficulty = g_rgszDifficultyNames[(size_t)i];
-
-				// Table of all locations.
-				if (ImGui::BeginTable("Table: Loci", 3, bitsTableFlags, vecSize))
-				{
-					static bool bTableInit[(size_t)Difficulty_e::_LAST] = { false, false, false, false };
-					if (!bTableInit[(size_t)i])	// What the fuck, imgui?
-					{
-						bTableInit[(size_t)i] = true;
-						ImGui::TableSetupScrollFreeze(0, 1); // Make top row always visible
-						ImGui::TableSetupColumn("##1", ImGuiTableColumnFlags_None);
-						ImGui::TableSetupColumn("##2", ImGuiTableColumnFlags_None);
-						ImGui::TableSetupColumn("##3", ImGuiTableColumnFlags_None);
-						ImGui::TableHeadersRow();
-					}
-
-					for (auto itLocus = CareerGame.m_Loci.begin(); itLocus != CareerGame.m_Loci.end(); itLocus++)
-					{
-						auto& Locus = *itLocus;
-						static int iColumnCount[(size_t)Difficulty_e::_LAST] = { 0, 0, 0 };
-
-						if (iColumnCount[(size_t)i] >= 3)
-						{
-							ImGui::TableNextRow();
-							iColumnCount[(size_t)i] = 0;
-						}
-
-						ImGui::TableSetColumnIndex(iColumnCount[(size_t)i]);
-						ImGui::Text(Locus.m_szMap.c_str());
-
-						ImGui::PushID((szCurDifficulty + Locus.m_szMap).c_str());
-						bool bShouldOpen = ImGui::ImageButton((void*)(intptr_t)g_Maps[Locus.m_szMap].m_Thumbnail.m_iTexId, g_Maps[Locus.m_szMap].m_Thumbnail.Size());
-						ImGui::PopID();
-
-						static Locus_t LocusCopy{};	// Make a copy if we needs to enter editor.
-						if (bShouldOpen)
-						{
-							ImGui::OpenPopup(UTIL_VarArgs("%s##%s", Locus.m_szMap.c_str(), szCurDifficulty));
-							LocusCopy = Locus;	// Make a copy only once. Or our changes will be kept after 1 frame.
-						}
-
-						// Our buttons are both drag sources and drag targets here!
-						if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
-						{
-							// Set payload to carry the index of our item (could be anything)
-							ImGui::SetDragDropPayload("LocusIterator", &itLocus, sizeof(itLocus));
-
-							// Preview popup.
-							ImGui::Text(Locus.m_szMap.c_str());
-							ImGui::Image((void*)(intptr_t)g_Maps[Locus.m_szMap].m_Thumbnail.m_iTexId, g_Maps[Locus.m_szMap].m_Thumbnail.Size());
-
-							ImGui::EndDragDropSource();
-						}
-
-						if (ImGui::BeginDragDropTarget())
-						{
-							if (const ImGuiPayload* Payload = ImGui::AcceptDragDropPayload("LocusIterator"))
-							{
-								IM_ASSERT(Payload->DataSize == sizeof(decltype(itLocus)));
-
-								auto itDraggedLocus = *(decltype(itLocus)*)Payload->Data;
-								std::swap(*itLocus, *itDraggedLocus);
-							}
-
-							ImGui::EndDragDropTarget();
-						}
-
-						// Always center this window when appearing
-						ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-
-						// Location editor.
-						if (ImGui::BeginPopupModal(UTIL_VarArgs("%s##%s", Locus.m_szMap.c_str(), szCurDifficulty), nullptr, ImGuiWindowFlags_AlwaysAutoResize))
-						{
-							// List all potential teammates in the current difficulty.
-							// Why? Because they can't be assign as your enemy at the same time.
-							Names_t& BotTeammates = MissionPack::CareerGames[i].m_rgszCharacters;
-
-							// Title picture. #TODO make this a button such that we can select map via this?
-							ImGui::Image((void*)(intptr_t)g_Maps[Locus.m_szMap].m_WiderPreview.m_iTexId, g_Maps[Locus.m_szMap].m_WiderPreview.Size());
-
-							if (ImGui::CollapsingHeader(UTIL_VarArgs("%d Enem%s selected###EnemySelection", LocusCopy.m_rgszBots.size(), LocusCopy.m_rgszBots.size() < 2 ? "y" : "ies")) &&
-								ImGui::BeginListBox("##Enemys_ListBox", ImVec2(-FLT_MIN, 7 * ImGui::GetTextLineHeightWithSpacing())))
-							{
-								for (const auto& Character : g_BotProfiles)
-								{
-									if (std::find(BotTeammates.begin(), BotTeammates.end(), Character.m_szName) != BotTeammates.end())
-										continue;	// Skip drawing if our candidate is our potential teammate.
-
-									auto it = std::find(LocusCopy.m_rgszBots.begin(), LocusCopy.m_rgszBots.end(), Character.m_szName);
-									bool bEnrolled = it != LocusCopy.m_rgszBots.end();
-
-									if (ImGui::Selectable(Character.m_szName.c_str(), bEnrolled))
-									{
-										if (bEnrolled)	// Select enrolled character -> rule them out.
-											LocusCopy.m_rgszBots.erase(it);
-										else
-											LocusCopy.m_rgszBots.emplace_back(Character.m_szName);
-									}
-
-									if (ImGui::IsItemHovered())
-									{
-										ImGui::BeginTooltip();
-										Gui::BotProfile::Summary(&Character);
-										ImGui::EndTooltip();
-									}
-								}
-
-								ImGui::EndListBox();
-							}
-
-							ImGui::InputInt("Min Enemies", &LocusCopy.m_iMinEnemies, 1, 5, ImGuiInputTextFlags_CharsDecimal);
-							ImGui::InputInt("Threshold", &LocusCopy.m_iThreshold, 1, 5, ImGuiInputTextFlags_CharsDecimal);
-							ImGui::Checkbox("Friendly Fire", &LocusCopy.m_bFriendlyFire);
-							ImGui::InputText("Console Command(s)", &LocusCopy.m_szConsoleCommands);
-
-							// Actual tasks.
-							if (ImGui::CollapsingHeader("Task(s)", ImGuiTreeNodeFlags_DefaultOpen))
-							{
-								int iIdentifierIndex = 0;
-								for (auto itTask = LocusCopy.m_Tasks.begin(); itTask != LocusCopy.m_Tasks.end(); /* Do nothing */)
-								{
-									Task_t& Task = *itTask;
-									bool bTreeNodeExpanded = ImGui::TreeNode(UTIL_VarArgs("%s###task%d", Task.ToString().c_str(), iIdentifierIndex));
-
-									if (!bTreeNodeExpanded && ImGui::IsItemHovered())
-										ImGui::SetTooltip("Right-click to add or delete.\nDrag and draw to reorder.");
-
-									// Right-click menu
-									if (!bTreeNodeExpanded && ImGui::BeginPopupContextItem())
-									{
-										if (ImGui::Selectable("Insert new task"))
-											LocusCopy.m_Tasks.push_back(Task_t{});
-
-										ImGui::BeginDisabled(LocusCopy.m_Tasks.size() < 2);
-										bool bRemoved = false;
-										if (ImGui::Selectable("Delete"))	// Must have at least one task.
-										{
-											itTask = LocusCopy.m_Tasks.erase(itTask);
-											bRemoved = true;
-										}
-										if (LocusCopy.m_Tasks.size() < 2 && ImGui::IsItemHovered())
-											ImGui::SetTooltip("You must have at least one task.");	// #TODO how to show this tooltip while I was disabled?
-										ImGui::EndDisabled();
-
-										ImGui::EndPopup();
-
-										if (bRemoved)
-											continue;	// Skip the it++;
-									}
-
-									// Reordering.
-									if (!bTreeNodeExpanded && ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
-									{
-										ImGui::SetDragDropPayload("itTask", &itTask, sizeof(itTask));
-
-										// Display preview
-										ImGui::Text("Reordering task: %s", g_rgszTaskNames[(size_t)Task.m_iType]);
-										ImGui::EndDragDropSource();
-									}
-									if (!bTreeNodeExpanded && ImGui::BeginDragDropTarget())
-									{
-										if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("itTask"))
-										{
-											IM_ASSERT(payload->DataSize == sizeof(itTask));
-											auto itTaskDragged = *(decltype(itTask)*)payload->Data;
-											std::swap(*itTaskDragged, *itTask);
-										}
-
-										ImGui::EndDragDropTarget();
-									}
-
-									// Task editor.
-									if (bTreeNodeExpanded)
-									{
-										int iTaskType = (int)Task.m_iType;
-										ImGui::Combo("Task Type", &iTaskType, g_rgszTaskNames, IM_ARRAYSIZE(g_rgszTaskNames));
-										Task.m_iType = (TaskType_e)iTaskType;
-										Task.SanityCheck();	// For example, you reassign this task from 'kill' to 'killall', in which you can't have any parameter at all.
-
-										if (Task.m_iType == TaskType_e::winfast)
-											ImGui::InputInt("In 'X' seconds", &Task.m_iCount, 1, 15, ImGuiInputTextFlags_CharsDecimal);
-										else if ((1 << iTaskType) & Tasks::REQ_COUNT)
-											ImGui::InputInt("Do 'X' times", &Task.m_iCount, 1, 5, ImGuiInputTextFlags_CharsDecimal);
-
-										if ((1 << iTaskType) & Tasks::REQ_WEAPON)
-										{
-											if (ImGui::BeginCombo("Required Weapon", Task.m_szWeapon.c_str(), ImGuiComboFlags_None))
-											{
-												for (int i = 0; i < _countof(g_rgszWeaponNames); i++)
-												{
-													if (!g_rgbIsTaskWeapon[i])
-														continue;
-
-													const bool bIsSelected = Task.m_szWeapon == g_rgszWeaponNames[i];
-													if (ImGui::Selectable(g_rgszWeaponNames[i], bIsSelected))
-														Task.m_szWeapon = g_rgszWeaponNames[i];
-
-													if (bIsSelected)
-														ImGui::SetItemDefaultFocus();
-												}
-
-												ImGui::EndCombo();
-											}
-										}
-
-										if ((1 << iTaskType) & Tasks::SURVIVE)
-											ImGui::Checkbox("Survive the round", &Task.m_bSurvive);
-
-										if ((1 << iTaskType) & Tasks::INAROW)
-											ImGui::Checkbox("Finish tasks in a row", &Task.m_bInARow);
-
-										ImGui::TreePop();
-									}
-
-									++iIdentifierIndex;
-									++itTask;
-								}
-							}
-
-							if (ImGui::Button("OK", ImVec2(120, 0)))
-							{
-								Locus = std::move(LocusCopy);
-								ImGui::CloseCurrentPopup();
-							}
-
-							ImGui::SetItemDefaultFocus();
-							ImGui::SameLine();
-							if (ImGui::Button("Cancel", ImVec2(120, 0))) { ImGui::CloseCurrentPopup(); }
-							ImGui::EndPopup();
-						}
-
-						iColumnCount[(size_t)i]++;
-					}
-
-					ImGui::EndTable();
-				}
-
-				ImGui::EndTabItem();
-			}
-
-			ImGui::EndTabBar();
-		}
+		g_iSetDifficulty = Difficulty_e::_LAST;	// Unset
 	}
-
-	ImGui::End();
 }
-
-void MapsWindow(void)
-{
-	if (g_bitsAsyncStatus & Async_e::UPDATING_MAPS_INFO || !g_bShowMapsWindow)
-		return;
-
-	const std::unique_lock Lock(Maps::Mutex, std::try_to_lock);
-	if (!Lock.owns_lock())
-		return;
-
-	if (ImGui::Begin("Maps## of independent window", &g_bShowMapsWindow, ImGuiWindowFlags_NoResize))
-	{
-		ImGui::SetWindowSize(ImVec2(240, 480));
-
-		Maps::Filter.Draw("Search");
-
-		for (const auto& [szName, Map] : g_Maps)
-		{
-			if (!Maps::Filter.PassFilter(szName.c_str()))
-				continue;
-
-			ImGui::Selectable(szName.c_str());
-
-			if (ImGui::IsItemHovered())
-			{
-				ImGui::BeginTooltip();
-
-				ImGui::TextWrapped(Map.m_Path.string().c_str());
-
-				if (Map.m_bThumbnailExists)
-				{
-					ImGui::Image((void*)(intptr_t)Map.m_Thumbnail.m_iTexId, Map.m_Thumbnail.Size());
-					ImGui::SameLine();
-				}
-				else
-				{
-					ImGui::Bullet(); ImGui::SameLine();
-					ImGui::TextColored(IMGUI_YELLOW, "Thumbnail no found.");
-				}
-
-				if (Map.m_bWiderPreviewExists)
-				{
-					ImGui::Image((void*)(intptr_t)Map.m_WiderPreview.m_iTexId, Map.m_WiderPreview.Size());
-				}
-				else
-				{
-					if (!Map.m_bThumbnailExists)	// If a map has only Thumbnail, do not draw our text along with it.
-					{
-						ImGui::Bullet();
-						ImGui::SameLine();
-					}
-
-					ImGui::TextColored(IMGUI_YELLOW, "Preview image no found.");
-				}
-
-				ImGui::Bullet(); ImGui::SameLine();
-				ImGui::TextColored(Map.m_bBriefFileExists ? IMGUI_GREEN : IMGUI_YELLOW, "Brief intro document %s.", Map.m_bBriefFileExists ? "found" : "no found");
-
-				ImGui::Bullet(); ImGui::SameLine();
-				ImGui::TextColored(Map.m_bDetailFileExists ? IMGUI_GREEN : IMGUI_YELLOW, "HD texture definition %s.", Map.m_bDetailFileExists ? "found" : "no found");
-
-				ImGui::Bullet(); ImGui::SameLine();
-				ImGui::TextColored(Map.m_bNavFileExists ? IMGUI_GREEN : IMGUI_YELLOW, "BOT navigation file %s.", Map.m_bDetailFileExists ? "found" : "no found");
-
-				ImGui::Bullet(); ImGui::SameLine();
-				ImGui::TextColored(Map.m_bOverviewFileExists ? IMGUI_GREEN : IMGUI_YELLOW, "Overview-related files %s.", Map.m_bDetailFileExists ? "found" : "no found");
-
-				ImGui::TextWrapped("\nRequired resources for this map:");
-
-				for (const auto& Res : Map.m_rgszResources)
-				{
-					bool b = CZFile::Exists(Res);
-
-					ImGui::Bullet(); ImGui::SameLine();
-					ImGui::TextColored(b ? IMGUI_GREEN : IMGUI_RED, Res.c_str());
-				}
-
-				ImGui::EndTooltip();
-			}
-		}
-	}
-
-	ImGui::End();
-}
-
-
-
-
-
 
 int main(int argc, char** argv)
 {
@@ -925,8 +584,8 @@ int main(int argc, char** argv)
 		MainMenuBar();
 		ConfigWindow();
 		CampaignWindow();
-		LocusWindow();
-		MapsWindow();
+		Gui::Locations::DrawWindow();
+		Gui::Maps::DrawWindow();
 		Gui::BotProfile::DrawWindow();
 
 		// Rendering

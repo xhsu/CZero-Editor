@@ -36,3 +36,4 @@ bin
 .va
 imgui.ini
 cze_config.ini
+*.res

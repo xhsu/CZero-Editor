@@ -137,18 +137,18 @@ void MissionPack::Save(const fs::path& hFolder) noexcept
 // Is this character enrolled as our potential teammate?
 bool MissionPack::IsTeammate(const Name_t& szName) noexcept
 {
-	return std::find_if(CareerGames[CurBrowsing].m_rgszCharacters.begin(), CareerGames[CurBrowsing].m_rgszCharacters.end(),
+	return std::find_if(CareerGames[Gui::MissionPack::CurBrowsing].m_rgszCharacters.begin(), CareerGames[Gui::MissionPack::CurBrowsing].m_rgszCharacters.end(),
 		[&szName](const Name_t& szCharacter)
 		{
 			return szName == szCharacter;
 		}
-	) != CareerGames[CurBrowsing].m_rgszCharacters.end();
+	) != CareerGames[Gui::MissionPack::CurBrowsing].m_rgszCharacters.end();
 }
 
 // Is this character is enlisted as our enemy in any of our mission locations?
 bool MissionPack::IsEnemy(const Name_t& szName) noexcept
 {
-	for (const auto& Locus : CareerGames[CurBrowsing].m_Loci)
+	for (const auto& Locus : CareerGames[Gui::MissionPack::CurBrowsing].m_Loci)
 	{
 		bool bFoundHere = std::find_if(Locus.m_rgszBots.begin(), Locus.m_rgszBots.end(),
 			[&szName](const Name_t& szCharacter)

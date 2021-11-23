@@ -571,8 +571,8 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 	if (g_bitsAsyncStatus & Async_e::UPDATING_MISSION_PACK_INFO || !g_bShowBotsWindow)
 		return;
 
-	const std::unique_lock Lock1(MissionPack::Mutex, std::try_to_lock);
-	const std::unique_lock Lock2(Maps::Mutex, std::try_to_lock);
+	const std::unique_lock Lock1(::MissionPack::Mutex, std::try_to_lock);
+	const std::unique_lock Lock2(::Maps::Mutex, std::try_to_lock);
 	if (!Lock1.owns_lock() || !Lock2.owns_lock())
 		return;
 
@@ -666,6 +666,7 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 					ImGui::EndPopup();
 				}
 
+				// List all templates.
 				for (auto itTplPair = BotProfileMgr::m_Templates.begin(); itTplPair != BotProfileMgr::m_Templates.end(); /* Do nothing */ )
 				{
 					auto& szName = itTplPair->first;
@@ -997,7 +998,7 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 								iSkinIndex = 6;	// 'Random' pic.
 
 							pPortrait = &BotProfileMgr::m_Thumbnails[g_rgszTSkinName[iSkinIndex]];
-							if (MissionPack::IsTeammate(Character.m_szName))
+							if (::MissionPack::IsTeammate(Character.m_szName))
 								pPortrait = &BotProfileMgr::m_Thumbnails[g_rgszCTSkinName[iSkinIndex]];
 						}
 						else if (BotProfileMgr::m_Skins.contains(*Character.Get<SKIN>()) && BotProfileMgr::m_Thumbnails.contains(BotProfileMgr::m_Skins[Character.m_szSkin]))
@@ -1022,7 +1023,7 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 								itChar = g_BotProfiles.erase(itChar);
 
 								// Delete the name in the campaign config as well.
-								for (auto& [iDifficulty, CareerGame] : MissionPack::CareerGames)
+								for (auto& [iDifficulty, CareerGame] : ::MissionPack::CareerGames)
 								{
 									if (auto iter = std::find(CareerGame.m_rgszCharacters.begin(), CareerGame.m_rgszCharacters.end(), itChar->m_szName);
 										iter != CareerGame.m_rgszCharacters.end())
@@ -1389,7 +1390,7 @@ void Gui::BotProfile::Summary(const BotProfile_t* pProfile) noexcept
 		if (UTIL_GetStringType(pProfile->m_szSkin.c_str()) == 1)	// int
 		{
 			const auto iSkin = std::atoi(pProfile->m_szSkin.c_str());
-			ImGui::BulletText("%s: %s (%d)", BotProfile_t::GetAttribName<SKIN>(), MissionPack::IsTeammate(pProfile->m_szName) ? g_rgszCTSkinName[iSkin] : g_rgszTSkinName[iSkin], iSkin);
+			ImGui::BulletText("%s: %s (%d)", BotProfile_t::GetAttribName<SKIN>(), ::MissionPack::IsTeammate(pProfile->m_szName) ? g_rgszCTSkinName[iSkin] : g_rgszTSkinName[iSkin], iSkin);
 		}
 		else
 			ImGui::BulletText("%s: %s", BotProfile_t::GetAttribName<SKIN>(), pProfile->m_szSkin.c_str());

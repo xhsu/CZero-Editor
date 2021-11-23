@@ -38,3 +38,21 @@ void Maps::Load(void) noexcept
 		}
 	}
 }
+
+std::string Maps::ListResources(const Map_t& Map) noexcept
+{
+	std::stringstream ss;
+
+	ss << '[' << (Map.m_bBriefFileExists ? "Found" : "No found") << "] " << "maps\\" + Map.m_szName + ".txt" << std::endl;
+	ss << '[' << (Map.m_bDetailFileExists ? "Found" : "No found") << "] " << "maps\\" + Map.m_szName + "_detail.txt"s << std::endl;
+	ss << '[' << (Map.m_bNavFileExists ? "Found" : "No found") << "] " << "maps\\" + Map.m_szName + ".nav" << std::endl;
+	ss << '[' << (CZFile::Exists("overviews\\" + Map.m_szName + ".bmp") ? "Found" : "No found") << "] " << "overviews\\" + Map.m_szName + ".bmp" << std::endl;
+	ss << '[' << (CZFile::Exists("overviews\\" + Map.m_szName + ".txt") ? "Found" : "No found") << "] " << "overviews\\" + Map.m_szName + ".txt" << std::endl;
+	ss << '[' << (Map.m_bThumbnailExists ? "Found" : "No found") << "] " << "gfx\\thumbnails\\maps\\" + Map.m_szName + ".tga" << std::endl;
+	ss << '[' << (Map.m_bWiderPreviewExists ? "Found" : "No found") << "] " << "gfx\\thumbnails\\maps_wide\\" + Map.m_szName + ".tga" << std::endl;
+
+	for (const auto& szResource : Map.m_rgszResources)
+		ss << '[' << (CZFile::Exists(szResource) ? "Found" : "No found") << "] " << szResource << std::endl;
+
+	return ss.str();
+}

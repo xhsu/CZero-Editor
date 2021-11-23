@@ -426,7 +426,7 @@ struct Task_t
 		m_bInARow = rhs.m_bInARow;
 		return *this;
 	}
-	virtual ~Task_t() {}
+	virtual ~Task_t() noexcept {}
 
 	void Parse(const std::string& sz) noexcept;
 
@@ -480,12 +480,12 @@ namespace CZFile	// None of these function requires "\\" before relative path (t
 	inline fs::path			m_HLPath;
 	inline Directories_t	m_Directories;
 
-	bool Update(void) noexcept;
+	extern bool Update(void) noexcept;
 
-	bool Exists(const std::string& szPath) noexcept;
+	extern bool Exists(const std::string& szPath) noexcept;
 
 	[[nodiscard]]
-	FILE* Open(const char* pszPath, const char* pszMode) noexcept;
+	extern FILE* Open(const char* pszPath, const char* pszMode) noexcept;
 };
 
 struct Map_t
@@ -564,6 +564,8 @@ struct Locus_t
 
 	[[nodiscard]]
 	ValveKeyValues* Save(void) const noexcept;
+
+	void Reset(void) noexcept;
 
 	Name_t			m_szMap{ ""s };
 	Names_t			m_rgszBots{};
@@ -664,7 +666,7 @@ struct BotProfile_t
 		m_szVoiceBank = std::move(rhs.m_szVoiceBank);
 		return *this;
 	}
-	virtual ~BotProfile_t() {}
+	virtual ~BotProfile_t() noexcept {}
 
 	bool SaveAttrib(std::ofstream& hFile) noexcept;
 
@@ -743,24 +745,6 @@ struct BotProfile_t
 	std::string m_szSkin{ "" };
 	std::string m_szTeam{ "" };
 	std::string m_szVoiceBank{ "" };
-
-/*	struct
-	{
-		bool m_szName : 1 { false };
-		bool m_rgszWpnPreference : 1 { false };
-		bool m_flAttackDelay : 1 { false };
-		bool m_flReactionTime : 1 { false };
-		bool m_bitsDifficulty : 1 { false };
-		bool m_iAggression : 1 { false };
-		bool m_iCost : 1 { false };
-		bool m_iSkill : 1 { false };
-		bool m_iTeamwork : 1 { false };
-		bool m_iVoicePitch : 1 { false };
-		bool m_szSkin : 1 { false };
-		bool m_szTeam : 1 { false };
-		bool m_szVoiceBank : 1 { false };
-
-	} m_FieldEnabled;*/
 
 	static inline constexpr const char* m_pszNameIntro = "The name of this character.\nYou may not include any non-ASCI character or spaces in here.";
 	static inline constexpr const char* m_pszWeaponPreferenceIntro = "Value: \"none\" or a buy alias such as \"m4a1\"\nDescription: Defines the bot's weapon preference.A bot can have many WeaponPreference\ndefinitions in a row, specifying a prioritized list(earlier ones are favorite over later ones) of\nweapons the bot will try to buy or pick up from the ground.A preference of “none” will cause\nthe bot to buy a random weapon.";
@@ -849,32 +833,32 @@ namespace BotProfileMgr
 		"// These are the individual bot profiles, which inherit first from \n"
 		"// Default and then the specified Template(s), in order\n";
 
-	void Clear(void) noexcept;
+	extern void Clear(void) noexcept;
 
-	void RemoveNoneInWpnPref(Weapons_t* p) noexcept;
+	extern void RemoveNoneInWpnPref(Weapons_t* p) noexcept;
 
-	void GenerateSkinsFromProfiles(void) noexcept;
+	extern void GenerateSkinsFromProfiles(void) noexcept;
 
-	bool ParseWithInheritance(const fs::path& hPath) noexcept;	// Assuming this file IS ACTUALLY exists.
+	extern bool ParseWithInheritance(const fs::path& hPath) noexcept;	// Assuming this file IS ACTUALLY exists.
 
-	bool Parse(const fs::path& hPath) noexcept;
+	extern bool Parse(const fs::path& hPath) noexcept;
 
-	bool Save(const fs::path& hPath) noexcept;
+	extern bool Save(const fs::path& hPath) noexcept;
 
-	void LoadSkinThumbnails(void) noexcept;
+	extern void LoadSkinThumbnails(void) noexcept;
 
-	size_t TemplateNameCount(const std::string& szName) noexcept;	// Compare with actual name instead of entry name.
+	extern size_t TemplateNameCount(const std::string& szName) noexcept;	// Compare with actual name instead of entry name.
 
-	size_t ProfileNameCount(const std::string& szName) noexcept;
+	extern size_t ProfileNameCount(const std::string& szName) noexcept;
 
 	// Deduce the result after a set of succession.
 	template<size_t iOffset>
-	decltype(auto) Deduce(const TemplateNames_t& rgszTemplates, bool bIncludeDefault = true, const BotProfile_t** ppSource = nullptr) noexcept;
+	extern decltype(auto) Deduce(const TemplateNames_t& rgszTemplates, bool bIncludeDefault = true, const BotProfile_t** ppSource = nullptr) noexcept;
 
 	// Find a profile.
-	BotProfile_t* Find(const std::string& szName) noexcept;
+	extern BotProfile_t* Find(const std::string& szName) noexcept;
 
-	bool TemplateOccupied(const BotProfile_t& Tpl) noexcept;
+	extern bool TemplateOccupied(const BotProfile_t& Tpl) noexcept;
 };
 
 namespace MissionPack
@@ -901,37 +885,44 @@ namespace MissionPack
 	inline Thumbnail_t		Thumbnail;
 	inline CareerGames_t	CareerGames;
 	inline KeyValueSet_t	CGKVs;
-	inline Difficulty_e		CurBrowsing{ Difficulty_e::EASY };
 	inline std::mutex		Mutex;
 
-	void CompileFileList(Files_t& rgFiles, const fs::path& hFolder, bool bCheck = true) noexcept;
+	extern void CompileFileList(Files_t& rgFiles, const fs::path& hFolder, bool bCheck = true) noexcept;
 
-	void CompileFileListOfTurtleRockCounterTerrorist(Files_t& rgFiles, const fs::path& hGameFolder) noexcept;
+	extern void CompileFileListOfTurtleRockCounterTerrorist(Files_t& rgFiles, const fs::path& hGameFolder) noexcept;
 
 	// Load the folder as if it were a mission pack.
-	void LoadFolder(const fs::path& hFolder) noexcept;
+	extern void LoadFolder(const fs::path& hFolder) noexcept;
 
-	void Save(const fs::path& hFolder = Folder) noexcept;
+	extern void Save(const fs::path& hFolder = Folder) noexcept;
 
 	// Is this character enrolled as our potential teammate?
-	bool IsTeammate(const Name_t& szName) noexcept;
+	extern bool IsTeammate(const Name_t& szName) noexcept;
 
 	// Is this character is enlisted as our enemy in any of our mission locations?
-	bool IsEnemy(const Name_t& szName) noexcept;
+	extern bool IsEnemy(const Name_t& szName) noexcept;
 };
 
 namespace Maps	// This is the game map instead of career quest 'Locus_t'!
 {
 	inline std::mutex Mutex;
-	inline ImGuiTextFilter Filter;	// Used in MapsWindow(). Call Build() after manually edits it.
 
-	void Load(void) noexcept;
+	extern void Load(void) noexcept;
+	extern std::string ListResources(const Map_t& Map) noexcept;
 };
 
 namespace Gui
 {
+	enum EditorResult_e : short
+	{
+		UNTOUCHED = 0,
+		DISCARD,
+		SAVED
+	};
+
 	template<typename... Tys>
-	const char* fnWeaponMenu(const Tys&... rgbMask) requires all_same_as<WeaponSelMask_t, Tys...>
+	requires all_same_as<WeaponSelMask_t, Tys...>
+	const char* fnWeaponMenu(const Tys&... rgbMask) noexcept
 	{
 		const char* pszResult = nullptr;
 		bool bEmptyCategory = true;
@@ -974,10 +965,10 @@ namespace Gui
 		}
 
 		return pszResult;
-	};
+	}
 
 	template<bool bDynamic = false>
-	inline void fnErrorDialog(const char* pszTitle, const char* pszContent)
+	inline void fnErrorDialog(const char* pszTitle, const char* pszContent) noexcept
 	{
 		ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 		if (ImGui::BeginPopupModal(pszTitle, nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize))
@@ -998,6 +989,8 @@ namespace Gui
 			ImGui::EndPopup();
 		}
 	}
+
+	extern void CheckDifficultySync(void) noexcept;
 };
 
 namespace Gui::BotProfile
@@ -1013,19 +1006,43 @@ namespace Gui::BotProfile
 
 	inline ImGuiTextFilter Filter;	// Call Build() after manually edits it.
 
-	void DrawWindow(void) noexcept;
-	void Summary(const BotProfile_t* pProfile) noexcept;	// Only value from self will be included.
+	extern void DrawWindow(void) noexcept;
+	extern void Summary(const BotProfile_t* pProfile) noexcept;	// Only value from self will be included.
+};
+
+namespace Gui::Locations
+{
+	inline ::Difficulty_e	LastBrowsing{ Difficulty_e::EASY };
+	inline ::Difficulty_e	CurBrowsing{ Difficulty_e::EASY };
+
+	extern EditorResult_e EditingDialog(const char* pszTitle, Locus_t* pLocus) noexcept;
+	extern void DrawWindow(void) noexcept;
+};
+
+namespace Gui::MissionPack
+{
+	inline ::Difficulty_e	LastBrowsing{ Difficulty_e::EASY };
+	inline ::Difficulty_e	CurBrowsing{ Difficulty_e::EASY };
+};
+
+namespace Gui::Maps
+{
+	inline ImGuiTextFilter Filter;	// Used in MapsWindow(). Call Build() after manually edits it.
+
+	extern void DrawWindow(void) noexcept;
+	extern void SelectionInterface(void (*pfnPostAddingItem)(const Map_t& CurMap) = nullptr, std::string* pszSelectedMap = nullptr) noexcept;
 };
 
 #pragma region Global Variables
 inline BotProfiles_t&		g_BotProfiles = BotProfileMgr::m_Profiles;
 inline GLFWwindow*			g_hGLFWWindow = nullptr;
 inline Maps_t				g_Maps;
-inline bool					g_bShowDebugWindow = false, g_bCurGamePathValid = false, g_bShowConfigWindow = true, g_bShowLociWindow = false, g_bShowCampaignWindow = false, g_bShowMapsWindow = false, g_bShowBotsWindow = true;
+inline bool					g_bShowDebugWindow = false, g_bCurGamePathValid = false, g_bShowConfigWindow = true, g_bShowLociWindow = false, g_bShowCampaignWindow = false, g_bShowMapsWindow = false, g_bShowBotsWindow = false;
 inline fs::path				g_GamePath;
 inline std::atomic<int>		g_bitsAsyncStatus = Async_e::UNKNOWN;
 inline std::string			g_szInputGamePath;
 inline ValveKeyValues*		g_Config = nullptr;
+inline Difficulty_e			g_iSetDifficulty = Difficulty_e::_LAST;
 #pragma endregion Global Variables
 
 #pragma region Templated Functions

@@ -72,8 +72,14 @@
     <ClCompile Include="MissionPack.cpp">
       <Filter>Namespaces</Filter>
     </ClCompile>
+    <ClCompile Include="Gui_Locations.cpp">
+      <Filter>Gui</Filter>
+    </ClCompile>
     <ClCompile Include="Gui_BotProfile.cpp">
-      <Filter>Namespaces</Filter>
+      <Filter>Gui</Filter>
+    </ClCompile>
+    <ClCompile Include="Gui_Maps.cpp">
+      <Filter>Gui</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -103,6 +109,9 @@
     </Filter>
     <Filter Include="Namespaces">
       <UniqueIdentifier>{d3536032-acd2-4eb3-a920-e40865812e87}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Gui">
+      <UniqueIdentifier>{b858ce57-ebb6-4ec0-af63-577443da0bf4}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

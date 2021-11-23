@@ -82,3 +82,14 @@ ValveKeyValues* Locus_t::Save(void) const	noexcept // #RET_HEAP_MEM
 
 	return pkv;
 }
+
+void Locus_t::Reset(void) noexcept
+{
+	m_szMap.clear();
+	m_rgszBots.clear();
+	m_iMinEnemies = 3;
+	m_iThreshold = 2;
+	m_Tasks.clear();
+	m_bFriendlyFire = false;
+	m_szConsoleCommands.clear();
+}
