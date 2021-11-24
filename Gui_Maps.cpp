@@ -39,11 +39,11 @@ static void RightclickMenu(const Map_t& Map) noexcept
 					auto rgszUnlistedRes = ::Maps::GetUnlistedResources(Map.m_szName);
 					for (const auto& szResource : rgszUnlistedRes)
 					{
-						if (auto szAbsPath = CZFile::GetAbsPath(szResource); fs::exists(szAbsPath))
-							ZipFile::AddFile(szZipFile, szAbsPath, szResource, LzmaMethod::Create());
-
 						++Gui::ZipProgress::m_iCur;
 						*Gui::ZipProgress::m_pszCurFile = "[Soft dependency] " + szResource;
+
+						if (auto szAbsPath = CZFile::GetAbsPath(szResource); fs::exists(szAbsPath))
+							ZipFile::AddFile(szZipFile, szAbsPath, szResource, LzmaMethod::Create());
 					}
 
 					Gui::ZipProgress::m_iCur = 0;
@@ -52,22 +52,27 @@ static void RightclickMenu(const Map_t& Map) noexcept
 
 					for (const auto& szResource : Map.m_rgszResources)
 					{
-						if (auto szAbsPath = CZFile::GetAbsPath(szResource); fs::exists(szAbsPath))
-							ZipFile::AddFile(szZipFile, szAbsPath, szResource, LzmaMethod::Create());
-
 						++Gui::ZipProgress::m_iCur;
 						*Gui::ZipProgress::m_pszCurFile = "[Hard dependency] " + szResource;
+
+						if (auto szAbsPath = CZFile::GetAbsPath(szResource); fs::exists(szAbsPath))
+							ZipFile::AddFile(szZipFile, szAbsPath, szResource, LzmaMethod::Create());
 					}
 
 					Gui::ZipProgress::m_iCur = 0;
-					Gui::ZipProgress::m_iTotal = 1;
-					*Gui::ZipProgress::m_pszCurFile = "Writing report as comment...";
+					Gui::ZipProgress::m_iTotal = 2;
+					*Gui::ZipProgress::m_pszCurFile = "Packing BSP file...";
+
+					ZipFile::AddFile(szZipFile, Map.m_Path.string(), "maps/" + Map.m_Path.filename().string(), LzmaMethod::Create());
+
+					Gui::ZipProgress::m_iCur = 1;
+					*Gui::ZipProgress::m_pszCurFile = "Writing analyzing report as comment...";
 
 					auto pZipFile = ZipFile::Open(szZipFile);
 					pZipFile->SetComment(::Maps::ListResources(Map));
 					ZipFile::SaveAndClose(pZipFile, szZipFile);
 
-					Gui::ZipProgress::m_iCur = 1;
+					Gui::ZipProgress::m_iCur = 2;
 					*Gui::ZipProgress::m_pszCurFile = "All done!";
 				}
 			);

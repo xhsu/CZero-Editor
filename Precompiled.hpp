@@ -998,6 +998,8 @@ namespace Gui
 	}
 
 	extern void CheckDifficultySync(void) noexcept;
+
+	extern void About(void) noexcept;
 };
 
 namespace Gui::BotProfile

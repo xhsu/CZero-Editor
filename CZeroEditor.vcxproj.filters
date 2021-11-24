@@ -84,6 +84,9 @@
     <ClCompile Include="Gui_ZipProgress.cpp">
       <Filter>Gui</Filter>
     </ClCompile>
+    <ClCompile Include="Gui.cpp">
+      <Filter>Gui</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="ImGui">

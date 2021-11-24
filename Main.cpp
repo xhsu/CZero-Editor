@@ -55,7 +55,7 @@ void HelpMarker(const char* desc, ...)
 
 void MainMenuBar(void)
 {
-	bool bSaveAsSelected = false;	// One frame variable.
+	bool bSaveAsSelected = false, bShouldOpenAbout = false;	// One frame variables.
 	static std::string szSaveTo;	// But this shouldn't.
 
 	if (ImGui::BeginMainMenuBar())
@@ -82,8 +82,19 @@ void MainMenuBar(void)
 			ImGui::EndMenu();
 		}
 
+		if (ImGui::BeginMenu("Help"))
+		{
+			bShouldOpenAbout = ImGui::MenuItem("About...");
+			ImGui::EndMenu();
+		}
+
 		ImGui::EndMainMenuBar();
 	}
+
+	if (bShouldOpenAbout)
+		ImGui::OpenPopup("About");
+
+	Gui::About();
 
 	if (bSaveAsSelected)
 		ImGui::OpenPopup("Save as...");
@@ -480,16 +491,6 @@ void CampaignWindow(void)
 
 
 
-void Gui::CheckDifficultySync(void) noexcept
-{
-	if (
-		g_iSetDifficulty == Gui::Locations::CurBrowsing
-		&& g_iSetDifficulty == Gui::MissionPack::CurBrowsing
-		)
-	{
-		g_iSetDifficulty = Difficulty_e::_LAST;	// Unset
-	}
-}
 
 int main(int argc, char** argv)
 {
