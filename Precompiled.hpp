@@ -27,6 +27,10 @@
 // OpenGL
 #include <GLFW/glfw3.h> // Will drag system OpenGL headers
 
+// Ziplib
+#include "ZipFile.h"
+
+
 #pragma region Namespaces
 // custom specialization of std::hash can be injected in namespace std.
 // Must be done before declaring its ANY usage.
@@ -486,6 +490,8 @@ namespace CZFile	// None of these function requires "\\" before relative path (t
 
 	[[nodiscard]]
 	extern FILE* Open(const char* pszPath, const char* pszMode) noexcept;
+
+	extern std::string GetAbsPath(const std::string& szPath) noexcept;
 };
 
 struct Map_t
@@ -909,6 +915,7 @@ namespace Maps	// This is the game map instead of career quest 'Locus_t'!
 
 	extern void Load(void) noexcept;
 	extern std::string ListResources(const Map_t& Map) noexcept;
+	extern std::array<std::string, 7> GetUnlistedResources(const std::string& szMapName) noexcept;
 };
 
 namespace Gui
@@ -1031,6 +1038,15 @@ namespace Gui::Maps
 
 	extern void DrawWindow(void) noexcept;
 	extern void SelectionInterface(void (*pfnPostAddingItem)(const Map_t& CurMap) = nullptr, std::string* pszSelectedMap = nullptr) noexcept;
+};
+
+namespace Gui::ZipProgress
+{
+	inline volatile std::atomic<std::string*> m_pszCurFile = nullptr;
+	inline volatile std::atomic<size_t> m_iCur = 0, m_iTotal = 1;
+	inline volatile std::atomic<double> m_flPercentage = 0;
+
+	extern void Dialog(const char* pszTitle) noexcept;
 };
 
 #pragma region Global Variables

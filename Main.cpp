@@ -493,6 +493,9 @@ void Gui::CheckDifficultySync(void) noexcept
 
 int main(int argc, char** argv)
 {
+	// Initialize vars
+	Gui::ZipProgress::m_pszCurFile = new std::string;	// #MEM_ALLOC
+
 	// Load config.
 	g_Config = new ValveKeyValues("CZeroEditorConfig");
 	if (fs::exists("cze_config.ini"))
@@ -621,6 +624,9 @@ int main(int argc, char** argv)
 		g_Config->SetValue("LastGamePath", g_szInputGamePath);
 		g_Config->SaveToFile("cze_config.ini");
 	}
+
+	// Free resources
+	delete Gui::ZipProgress::m_pszCurFile;	// #MEM_FREED
 
 	return EXIT_SUCCESS;
 }

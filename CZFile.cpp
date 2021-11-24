@@ -108,3 +108,16 @@ FILE* CZFile::Open(const char* pszPath, const char* pszMode) noexcept	// #RET_FO
 
 	return nullptr;
 }
+
+std::string CZFile::GetAbsPath(const std::string& szPath) noexcept
+{
+	for (const auto& Directory : m_Directories)
+	{
+		auto sz = Directory.string() + '\\' + szPath;
+
+		if (fs::exists(sz))
+			return sz;
+	}
+
+	return "";
+}

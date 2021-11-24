@@ -10,13 +10,13 @@ import UtlString;
 
 static void RightclickMenu(const Map_t& Map) noexcept
 {
-	bool bOpenDialog = false;
+	bool bOpenSuccessDialog = false, bStartPackingMap = false;
 
 	if (ImGui::BeginPopupContextItem())
 	{
 		if (ImGui::MenuItem("Generate map resource report"))
 		{
-			bOpenDialog = true;
+			bOpenSuccessDialog = true;
 
 			std::ofstream hFile(Map.m_szName + ".res");	// #FOPEN
 			hFile << ::Maps::ListResources(Map);
@@ -24,10 +24,66 @@ static void RightclickMenu(const Map_t& Map) noexcept
 			hFile.close();	// #FCLOSE
 		}
 
+		if (ImGui::MenuItem("Pack this map"))
+		{
+			bStartPackingMap = true;
+			Gui::ZipProgress::m_iCur = 0;
+			Gui::ZipProgress::m_iTotal = 7;
+			*Gui::ZipProgress::m_pszCurFile = "";
+
+			std::thread t([&Map](void)
+				{
+					auto szZipFile = Map.m_szName + ".zip";
+					std::remove(szZipFile.c_str());
+
+					auto rgszUnlistedRes = ::Maps::GetUnlistedResources(Map.m_szName);
+					for (const auto& szResource : rgszUnlistedRes)
+					{
+						if (auto szAbsPath = CZFile::GetAbsPath(szResource); fs::exists(szAbsPath))
+							ZipFile::AddFile(szZipFile, szAbsPath, szResource, LzmaMethod::Create());
+
+						++Gui::ZipProgress::m_iCur;
+						*Gui::ZipProgress::m_pszCurFile = "[Soft dependency] " + szResource;
+					}
+
+					Gui::ZipProgress::m_iCur = 0;
+					Gui::ZipProgress::m_iTotal = Map.m_rgszResources.size();
+					*Gui::ZipProgress::m_pszCurFile = "";
+
+					for (const auto& szResource : Map.m_rgszResources)
+					{
+						if (auto szAbsPath = CZFile::GetAbsPath(szResource); fs::exists(szAbsPath))
+							ZipFile::AddFile(szZipFile, szAbsPath, szResource, LzmaMethod::Create());
+
+						++Gui::ZipProgress::m_iCur;
+						*Gui::ZipProgress::m_pszCurFile = "[Hard dependency] " + szResource;
+					}
+
+					Gui::ZipProgress::m_iCur = 0;
+					Gui::ZipProgress::m_iTotal = 1;
+					*Gui::ZipProgress::m_pszCurFile = "Writing report as comment...";
+
+					auto pZipFile = ZipFile::Open(szZipFile);
+					pZipFile->SetComment(::Maps::ListResources(Map));
+					ZipFile::SaveAndClose(pZipFile, szZipFile);
+
+					Gui::ZipProgress::m_iCur = 1;
+					*Gui::ZipProgress::m_pszCurFile = "All done!";
+				}
+			);
+
+			t.detach();
+		}
+
 		ImGui::EndPopup();
 	}
 
-	if (bOpenDialog)
+	if (bStartPackingMap)
+		ImGui::OpenPopup(("Packing files for " + Map.m_szName + "...").c_str());
+
+	Gui::ZipProgress::Dialog(("Packing files for " + Map.m_szName + "...").c_str());
+
+	if (bOpenSuccessDialog)
 		ImGui::OpenPopup(("Success##" + Map.m_szName).c_str());
 
 	Gui::fnErrorDialog<true>(	// The address of these rvalues cannot outlive rendering process.

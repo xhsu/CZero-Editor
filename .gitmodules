@@ -13,3 +13,6 @@
 [submodule "stb"]
 	path = stb
 	url = https://github.com/nothings/stb
+[submodule "ziplib"]
+	path = ziplib
+	url = https://bitbucket.org/wbenny/ziplib

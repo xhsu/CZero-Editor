@@ -56,3 +56,16 @@ std::string Maps::ListResources(const Map_t& Map) noexcept
 
 	return ss.str();
 }
+
+std::array<std::string, 7> Maps::GetUnlistedResources(const std::string& szMapName) noexcept
+{
+	return {
+		"maps\\" + szMapName + ".txt",
+		"maps\\" + szMapName + "_detail.txt",
+		"maps\\" + szMapName + ".nav",
+		"overviews\\" + szMapName + ".bmp",
+		"overviews\\" + szMapName + ".txt",
+		"gfx\\thumbnails\\maps\\" + szMapName + ".tga",
+		"gfx\\thumbnails\\maps_wide\\" + szMapName + ".tga",
+	};
+}
