@@ -29,62 +29,82 @@
     <ClCompile Include="imgui\misc\freetype\imgui_freetype.cpp">
       <Filter>ImGui\misc\freetype</Filter>
     </ClCompile>
-    <ClCompile Include="UtlKeyValues.ixx" />
-    <ClCompile Include="..\Hydrogenium\UtlBuffer.ixx">
-      <Filter>Hydrogenium</Filter>
-    </ClCompile>
-    <ClCompile Include="..\Hydrogenium\UtlFileSystem.ixx">
-      <Filter>Hydrogenium</Filter>
-    </ClCompile>
-    <ClCompile Include="..\Hydrogenium\UtlFunction.ixx">
-      <Filter>Hydrogenium</Filter>
-    </ClCompile>
-    <ClCompile Include="..\Hydrogenium\UtlString.ixx">
-      <Filter>Hydrogenium</Filter>
-    </ClCompile>
-    <ClCompile Include="UtlImage.hpp" />
-    <ClCompile Include="BspParser.cpp" />
+    <ClCompile Include="Source\Utils\UtlImage.hpp" />
+    <ClCompile Include="Source\Utils\BspParser.cpp" />
     <ClCompile Include="Precompiled.cpp" />
-    <ClCompile Include="BotProfile_t.cpp">
+    <ClCompile Include="Source\Structures\BotProfile_t.cpp">
       <Filter>Classes</Filter>
     </ClCompile>
-    <ClCompile Include="CareerGame_t.cpp">
+    <ClCompile Include="Source\Structures\CareerGame_t.cpp">
       <Filter>Classes</Filter>
     </ClCompile>
-    <ClCompile Include="Locus_t.cpp">
+    <ClCompile Include="Source\Structures\Locus_t.cpp">
       <Filter>Classes</Filter>
     </ClCompile>
-    <ClCompile Include="Map_t.cpp">
+    <ClCompile Include="Source\Structures\Map_t.cpp">
       <Filter>Classes</Filter>
     </ClCompile>
-    <ClCompile Include="Task_t.cpp">
+    <ClCompile Include="Source\Structures\Task_t.cpp">
       <Filter>Classes</Filter>
     </ClCompile>
-    <ClCompile Include="BotProfileMgr.cpp">
+    <ClCompile Include="Source\Namespaces\BotProfileMgr.cpp">
       <Filter>Namespaces</Filter>
     </ClCompile>
-    <ClCompile Include="CZFile.cpp">
+    <ClCompile Include="Source\Namespaces\CZFile.cpp">
       <Filter>Namespaces</Filter>
     </ClCompile>
-    <ClCompile Include="Maps.cpp">
+    <ClCompile Include="Source\Namespaces\Maps.cpp">
       <Filter>Namespaces</Filter>
     </ClCompile>
-    <ClCompile Include="MissionPack.cpp">
+    <ClCompile Include="Source\Namespaces\MissionPack.cpp">
       <Filter>Namespaces</Filter>
     </ClCompile>
-    <ClCompile Include="Gui_Locations.cpp">
+    <ClCompile Include="Source\Gui\Gui_Locations.cpp">
       <Filter>Gui</Filter>
     </ClCompile>
-    <ClCompile Include="Gui_BotProfile.cpp">
+    <ClCompile Include="Source\Gui\Gui_BotProfile.cpp">
       <Filter>Gui</Filter>
     </ClCompile>
-    <ClCompile Include="Gui_Maps.cpp">
+    <ClCompile Include="Source\Gui\Gui_Maps.cpp">
       <Filter>Gui</Filter>
     </ClCompile>
-    <ClCompile Include="Gui_ZipProgress.cpp">
+    <ClCompile Include="Source\Gui\Gui_ZipProgress.cpp">
       <Filter>Gui</Filter>
     </ClCompile>
-    <ClCompile Include="Gui.cpp">
+    <ClCompile Include="Source\Gui\Gui.cpp">
+      <Filter>Gui</Filter>
+    </ClCompile>
+    <ClCompile Include="Hydrogenium\UtlArithmetic.ixx">
+      <Filter>Hydrogenium</Filter>
+    </ClCompile>
+    <ClCompile Include="Hydrogenium\UtlBuffer.ixx">
+      <Filter>Hydrogenium</Filter>
+    </ClCompile>
+    <ClCompile Include="Hydrogenium\UtlColor.ixx">
+      <Filter>Hydrogenium</Filter>
+    </ClCompile>
+    <ClCompile Include="Hydrogenium\UtlFileSystem.ixx">
+      <Filter>Hydrogenium</Filter>
+    </ClCompile>
+    <ClCompile Include="Hydrogenium\UtlFunction.ixx">
+      <Filter>Hydrogenium</Filter>
+    </ClCompile>
+    <ClCompile Include="Hydrogenium\UtlKeyValues.ixx">
+      <Filter>Hydrogenium</Filter>
+    </ClCompile>
+    <ClCompile Include="Hydrogenium\UtlLinearAlgebra.ixx">
+      <Filter>Hydrogenium</Filter>
+    </ClCompile>
+    <ClCompile Include="Hydrogenium\UtlString.ixx">
+      <Filter>Hydrogenium</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Namespaces\Overview.cpp">
+      <Filter>Namespaces</Filter>
+    </ClCompile>
+    <ClCompile Include="Hydrogenium\UtlConcepts.ixx">
+      <Filter>Hydrogenium</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Gui\Gui_Overview.cpp">
       <Filter>Gui</Filter>
     </ClCompile>
   </ItemGroup>
@@ -155,7 +175,12 @@
       <Filter>ImGui\misc\freetype</Filter>
     </ClInclude>
     <ClInclude Include="Precompiled.hpp" />
-    <ClInclude Include="ScopedEnumOperator.hpp" />
+    <ClInclude Include="Hydrogenium\ScopedEnumOperator.hpp">
+      <Filter>Hydrogenium</Filter>
+    </ClInclude>
+    <ClInclude Include="Hydrogenium\UtlFormatter.hpp">
+      <Filter>Hydrogenium</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="imgui\misc\cpp\README.txt">

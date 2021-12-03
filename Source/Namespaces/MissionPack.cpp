@@ -24,7 +24,7 @@ void MissionPack::CompileFileList(Files_t& rgFiles, const fs::path& hFolder, boo
 		for (const auto& File : rgFiles)
 		{
 			if (!fs::exists(File))
-				std::cout << "Warning: File '" << File << "' is missing from '" << hFolder << "'\n";
+				std::cout << "Warning: File '" << File << "' is missing from game folder.\n";
 		}
 	}
 }
@@ -62,7 +62,7 @@ void MissionPack::LoadFolder(const fs::path& hFolder) noexcept
 	for (auto& [iDifficulty, p] : CGKVs)
 	{
 		if (p)
-			p->deleteThis();
+			delete p;
 
 		p = nullptr;
 	}
@@ -76,7 +76,7 @@ void MissionPack::LoadFolder(const fs::path& hFolder) noexcept
 
 	if (fs::exists(Files[FILE_OVERVIEW]))
 	{
-		// Overfiew file parse #TODO_OVERVIEW_FILE
+		Overview::Parse(Files[FILE_OVERVIEW]);
 	}
 
 	if (fs::exists(Files[FILE_THUMBNAIL]))
@@ -110,8 +110,7 @@ void MissionPack::Save(const fs::path& hFolder) noexcept
 	Files_t rgFiles;
 	CompileFileList(rgFiles, hFolder, false);
 
-	if (!fs::exists(rgFiles[FILE_OVERVIEW]) && fs::exists(Files[FILE_OVERVIEW]))	// Properly output Overview.vdf #TODO_OVERVIEW_FILE
-		fs::copy_file(Files[FILE_OVERVIEW], rgFiles[FILE_OVERVIEW]);
+	Overview::Save(rgFiles[FILE_OVERVIEW]);
 
 	if (!fs::exists(rgFiles[FILE_THUMBNAIL]) && fs::exists(Files[FILE_THUMBNAIL]))
 		fs::copy_file(Files[FILE_THUMBNAIL], rgFiles[FILE_THUMBNAIL]);
@@ -125,7 +124,7 @@ void MissionPack::Save(const fs::path& hFolder) noexcept
 		}
 
 		if (CGKVs[i])
-			CGKVs[i]->deleteThis();
+			delete CGKVs[i];
 
 		CGKVs[i] = CareerGames[i].Save();
 		CGKVs[i]->SaveToFile(rgFiles[i + FILE_EASY].string().c_str());
@@ -137,11 +136,10 @@ void MissionPack::Save(const fs::path& hFolder) noexcept
 // Is this character enrolled as our potential teammate?
 bool MissionPack::IsTeammate(const Name_t& szName) noexcept
 {
-	return std::find_if(CareerGames[Gui::MissionPack::CurBrowsing].m_rgszCharacters.begin(), CareerGames[Gui::MissionPack::CurBrowsing].m_rgszCharacters.end(),
-		[&szName](const Name_t& szCharacter)
-		{
-			return szName == szCharacter;
-		}
+	return std::find(
+		CareerGames[Gui::MissionPack::CurBrowsing].m_rgszCharacters.begin(),
+		CareerGames[Gui::MissionPack::CurBrowsing].m_rgszCharacters.end(),
+		szName
 	) != CareerGames[Gui::MissionPack::CurBrowsing].m_rgszCharacters.end();
 }
 
@@ -150,14 +148,7 @@ bool MissionPack::IsEnemy(const Name_t& szName) noexcept
 {
 	for (const auto& Locus : CareerGames[Gui::MissionPack::CurBrowsing].m_Loci)
 	{
-		bool bFoundHere = std::find_if(Locus.m_rgszBots.begin(), Locus.m_rgszBots.end(),
-			[&szName](const Name_t& szCharacter)
-			{
-				return szName == szCharacter;
-			}
-		) != Locus.m_rgszBots.end();
-
-		if (bFoundHere)
+		if (std::find(Locus.m_rgszBots.begin(), Locus.m_rgszBots.end(), szName) != Locus.m_rgszBots.end())
 			return true;
 	}
 

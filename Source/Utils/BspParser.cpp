@@ -24,7 +24,9 @@ https://forum.unity.com/threads/tiling-textures-within-an-atlas-possible.44482/
 
 */
 
+#ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
+#endif
 
 // C
 #include <cassert>

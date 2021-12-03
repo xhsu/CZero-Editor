@@ -25,7 +25,7 @@ Gui::EditorResult_e Gui::Locations::EditingDialog(const char* pszTitle, Locus_t*
 		// Why? Because they can't be assign as your enemy at the same time.
 		Names_t& BotTeammates = ::MissionPack::CareerGames[Gui::Locations::CurBrowsing].m_rgszCharacters;
 
-		// Title picture. #TODO make this a button such that we can select map via this?
+		// Title picture.
 		if (ImGui::ImageButton((void*)(intptr_t)g_Maps[pLocus->m_szMap].m_WiderPreview.m_iTexId, g_Maps[pLocus->m_szMap].m_WiderPreview.Size()))
 			ImGui::OpenPopup("Map Selection");
 

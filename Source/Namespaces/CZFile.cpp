@@ -121,3 +121,35 @@ std::string CZFile::GetAbsPath(const std::string& szPath) noexcept
 
 	return "";
 }
+
+std::string CZFile::GetRelativePath(const std::string& szPath) noexcept
+{
+	const char* p = szPath.data();
+	const char* pEnd = p + szPath.length();
+
+	for (; p && p != pEnd; ++p)
+	{
+		if (!_strnicmp(p, "valve", 5) || !_strnicmp(p, "cstrike", 7) || !_strnicmp(p, "czero", 5))
+			break;
+	}
+
+	if (!p || p == pEnd || *p == '\0')
+		return "";
+
+	size_t iPos = p - szPath.data();	// This thing must be positive.
+	iPos = szPath.find_first_of("\\/", iPos);
+
+	if (iPos == std::string::npos || (iPos + 1) > szPath.length())
+		return "";
+
+	auto ret = szPath;
+	ret.erase(0, iPos + 1);	// '/' included.
+
+	for (auto& c : ret)
+	{
+		if (c == '\\')
+			c = '/';
+	}
+
+	return ret;
+}

@@ -31,6 +31,7 @@
 #include "ZipFile.h"
 
 
+
 #pragma region Namespaces
 // custom specialization of std::hash can be injected in namespace std.
 // Must be done before declaring its ANY usage.
@@ -78,11 +79,13 @@ concept all_same_as = std::conjunction_v<std::is_same<T, Ts>...>;
 #pragma region Dummy
 struct BotProfile_t;
 struct CareerGame_t;
+struct Color4b;
+struct Color4f;
 struct Locus_t;
 struct Map_t;
-struct ValveKeyValues;
 struct Task_t;
 struct Thumbnail_t;
+struct ValveKeyValues;
 #pragma endregion Dummy
 
 
@@ -209,7 +212,8 @@ using Weapons_t = std::vector<std::string>;
 #pragma endregion Type Alias
 
 
-#include "ScopedEnumOperator.hpp"
+#include "Hydrogenium/ScopedEnumOperator.hpp"
+//#include "Hydrogenium/UtlFormatter.hpp"
 
 
 #pragma region Global Constants
@@ -492,6 +496,8 @@ namespace CZFile	// None of these function requires "\\" before relative path (t
 	extern FILE* Open(const char* pszPath, const char* pszMode) noexcept;
 
 	extern std::string GetAbsPath(const std::string& szPath) noexcept;
+
+	extern std::string GetRelativePath(const std::string& szPath) noexcept;
 };
 
 struct Map_t
@@ -867,6 +873,29 @@ namespace BotProfileMgr
 	extern bool TemplateOccupied(const BotProfile_t& Tpl) noexcept;
 };
 
+namespace Overview
+{
+	inline ValveKeyValues* m_pKeyValue = nullptr;
+
+	inline std::string m_szAuthor = "";
+	inline std::string m_szTitle = "";
+	inline std::string m_szDescription = "";
+	inline std::string m_szUrl = "";
+	inline bool m_bSoloPlay = true;	// Normally should be solo... I guess?
+	inline bool m_bCoopPlay = false;
+	inline const char* m_pszTeam = "CT";
+	inline ImColor m_BGColor1 = {};
+	inline ImColor m_BGColor2 = {};
+	inline ImColor m_TextColor = {};
+	inline std::string m_BotProfile = "";
+
+	extern void Parse(const fs::path& hPath) noexcept;
+
+	extern void Clear(void) noexcept;
+
+	extern void Save(const fs::path& hPath) noexcept;
+};
+
 namespace MissionPack
 {
 	enum : size_t
@@ -926,6 +955,8 @@ namespace Gui
 		DISCARD,
 		SAVED
 	};
+
+	extern const std::array<Color4f, 32> m_rgszPalette;
 
 	template<typename... Tys>
 	requires all_same_as<WeaponSelMask_t, Tys...>
@@ -1044,6 +1075,12 @@ namespace Gui::Maps
 
 namespace Gui::ZipProgress
 {
+	/*
+	* 'volatile' is a compile-time keyword.
+	* The only thing it does is prevents compiler making constant-optimization.
+	* Which could be useful, like in a multi-threading case: enforcing the CPU reads from memory EACH time when variable pops out is necessory.
+	*/
+
 	inline volatile std::atomic<std::string*> m_pszCurFile = nullptr;
 	inline volatile std::atomic<size_t> m_iCur = 0, m_iTotal = 1;
 	inline volatile std::atomic<double> m_flPercentage = 0;
@@ -1051,11 +1088,16 @@ namespace Gui::ZipProgress
 	extern void Dialog(const char* pszTitle) noexcept;
 };
 
+namespace Gui::Overview
+{
+	extern void DrawWindow(void) noexcept;
+};
+
 #pragma region Global Variables
 inline BotProfiles_t&		g_BotProfiles = BotProfileMgr::m_Profiles;
 inline GLFWwindow*			g_hGLFWWindow = nullptr;
 inline Maps_t				g_Maps;
-inline bool					g_bShowDebugWindow = false, g_bCurGamePathValid = false, g_bShowConfigWindow = true, g_bShowLociWindow = false, g_bShowCampaignWindow = false, g_bShowMapsWindow = false, g_bShowBotsWindow = false;
+inline bool					g_bShowDebugWindow = false, g_bCurGamePathValid = false, g_bModSelected = false, g_bShowConfigWindow = true, g_bShowLociWindow = false, g_bShowCampaignWindow = false, g_bShowMapsWindow = false, g_bShowBotsWindow = false, g_bShowOverviewWindow = false;
 inline fs::path				g_GamePath;
 inline std::atomic<int>		g_bitsAsyncStatus = Async_e::UNKNOWN;
 inline std::string			g_szInputGamePath;

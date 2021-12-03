@@ -98,7 +98,6 @@ static void RightclickMenu(const Map_t& Map) noexcept
 }
 
 void Gui::Maps::DrawWindow(void) noexcept
-
 {
 	if (g_bitsAsyncStatus & Async_e::UPDATING_MAPS_INFO || !g_bShowMapsWindow)
 		return;

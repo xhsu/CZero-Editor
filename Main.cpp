@@ -75,6 +75,7 @@ void MainMenuBar(void)
 		{
 			ImGui::MenuItem("Config", "", &g_bShowConfigWindow);
 			ImGui::Separator();
+			ImGui::MenuItem("Overview", "", &g_bShowOverviewWindow);
 			ImGui::MenuItem("Campaign", "F1", &g_bShowCampaignWindow, !(g_bitsAsyncStatus & Async_e::UPDATING_MISSION_PACK_INFO));
 			ImGui::MenuItem("Loci", "F2", &g_bShowLociWindow, !(g_bitsAsyncStatus & Async_e::UPDATING_MISSION_PACK_INFO));
 			ImGui::MenuItem("Maps", "F3", &g_bShowMapsWindow, !(g_bitsAsyncStatus & Async_e::UPDATING_MAPS_INFO));
@@ -208,6 +209,8 @@ void ConfigWindow(void)
 			{
 				if (ImGui::Selectable(hPath.filename().string().c_str()))
 				{
+					g_bModSelected = true;
+
 					//std::thread t(
 						[&hPath](void)
 						{
@@ -591,6 +594,7 @@ int main(int argc, char** argv)
 		Gui::Locations::DrawWindow();
 		Gui::Maps::DrawWindow();
 		Gui::BotProfile::DrawWindow();
+		Gui::Overview::DrawWindow();
 
 		// Rendering
 		ImGui::Render();
