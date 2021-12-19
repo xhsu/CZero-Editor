@@ -1,9 +1,6 @@
 [submodule "imgui"]
 	path = imgui
 	url = https://github.com/ocornut/imgui
-[submodule "glfw"]
-	path = glfw
-	url = https://github.com/glfw/glfw
 [submodule "freetype-windows-binaries"]
 	path = freetype-windows-binaries
 	url = https://github.com/ubawurinna/freetype-windows-binaries
