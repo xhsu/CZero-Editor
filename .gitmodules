@@ -13,3 +13,7 @@
 [submodule "ziplib"]
 	path = ziplib
 	url = https://bitbucket.org/wbenny/ziplib
+[submodule "ImGuiFileDialog"]
+	path = ImGuiFileDialog
+	url = https://github.com/aiekick/ImGuiFileDialog
+	branch = Lib_Only
