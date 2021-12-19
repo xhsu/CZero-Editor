@@ -38,3 +38,4 @@ imgui.ini
 cze_config.ini
 *.res
 Obj
+!GLFW*.lib

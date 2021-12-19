@@ -62,7 +62,7 @@ void Gui::About(void) noexcept
 		return;
 
 	ImGui::TextUnformatted("Author: Hydrogen");
-	ImGui::TextUnformatted("Version: Beta 4");
+	ImGui::TextUnformatted("Version: Beta 5");
 	ImGui::TextUnformatted("https://github.com/xhsu/CZero-Editor");
 	ImGui::TextUnformatted("xujiananxm@gmail.com");
 
