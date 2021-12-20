@@ -233,7 +233,15 @@ void ConfigWindow(void) noexcept
 		ImGui::SameLine();
 		ImGui::TextColored(g_bCurGamePathValid ? IMGUI_GREEN : IMGUI_RED, g_bCurGamePathValid ? "Valid" : "Invalid");
 
-		// #TODO add detection for CZCareerFix.amxx
+		// Detection for CareerTasksFix.amxx
+		if (!CZFile::Exists("addons/amxmodx/plugins/CareerTasksFix.amxx"))
+		{
+			ImGui::Bullet(); ImGui::SameLine();
+			ImGui::PushStyleColor(ImGuiCol_Text, (ImVec4)ImColor(156, 0, 6));
+			ImGui::TextUnformatted("Warning: without certain fix, some career tasks would not work properly.");
+			ImGui::TextUnformatted("[AD] https://forums.alliedmods.net/showthread.php?p=2743533");
+			ImGui::PopStyleColor();
+		}
 
 		if (!MissionPack::Name.empty())
 		{

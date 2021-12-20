@@ -71,6 +71,7 @@ void Gui::About(void) noexcept
 	ImGui::Bullet(); ImGui::SameLine(); ImGui::TextUnformatted("freetype (https://github.com/ubawurinna/freetype-windows-binaries)");
 	ImGui::Bullet(); ImGui::SameLine(); ImGui::TextUnformatted("glfw (https://github.com/glfw/glfw)");
 	ImGui::Bullet(); ImGui::SameLine(); ImGui::TextUnformatted("ImGui (https://github.com/ocornut/imgui)");
+	ImGui::Bullet(); ImGui::SameLine(); ImGui::TextUnformatted("ImGuiFileDialog (https://github.com/aiekick/ImGuiFileDialog)");
 	ImGui::Bullet(); ImGui::SameLine(); ImGui::TextUnformatted("stb (https://github.com/nothings/stb)");
 	ImGui::Bullet(); ImGui::SameLine(); ImGui::TextUnformatted("ziplib (https://bitbucket.org/wbenny/ziplib)");
 
