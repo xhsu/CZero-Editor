@@ -1274,10 +1274,18 @@ inline const char* BotProfile_t::AttribSanity(bool bSelfOnly) const noexcept
 				}
 			}
 		}
+		goto LAB_REGULAR_STRING_CHECK;
+
+	case offsetof(BotProfile_t, m_szVoiceBank):
+		if constexpr (std::is_same_v<T, std::string>)
+		{
+			if (!CZFile::Exists(*pValue))
+				return "File doesn't exists.";
+		}
 		[[fallthrough]];
 
 	case offsetof(BotProfile_t, m_szSkin):
-	case offsetof(BotProfile_t, m_szVoiceBank):
+	LAB_REGULAR_STRING_CHECK:;
 		if constexpr (std::is_same_v<T, std::string>)
 		{
 			if (pValue->empty())

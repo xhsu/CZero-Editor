@@ -23,8 +23,8 @@ void MissionPack::CompileFileList(Files_t& rgFiles, const fs::path& hFolder, boo
 	{
 		for (const auto& File : rgFiles)
 		{
-			if (!fs::exists(File))
-				std::cout << "Warning: File '" << File << "' is missing from game folder.\n";
+			if (!fs::exists(File)) [[unlikely]]
+				std::cout << "Warning: File '" << File.string() << "' is missing from game folder.\n";
 		}
 	}
 }
@@ -41,8 +41,8 @@ void MissionPack::CompileFileListOfTurtleRockCounterTerrorist(Files_t& rgFiles, 
 
 	for (const auto& File : rgFiles)
 	{
-		if (!fs::exists(File))
-			std::cout << "Warning: File '" << File << "' is missing from game folder.\n";
+		if (!fs::exists(File)) [[unlikely]]
+			std::cout << "Warning: File '" << File.string() << "' is missing from game folder.\n";
 	}
 }
 

@@ -110,6 +110,9 @@
     <ClCompile Include="ImGuiFileDialog\ImGuiFileDialog.cpp">
       <Filter>ImGuiFileDialog</Filter>
     </ClCompile>
+    <ClCompile Include="Hydrogenium\UtlWinConsole.ixx">
+      <Filter>Hydrogenium</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="ImGui">

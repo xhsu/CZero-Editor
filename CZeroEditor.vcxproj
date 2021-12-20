@@ -72,26 +72,26 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>$(SolutionDir)bin\$(Platform)\</OutDir>
-    <IntDir>$(SolutionDir)bin\$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)bin\$(PlatformShortName)\</OutDir>
+    <IntDir>$(SolutionDir)bin\$(PlatformShortName)\$(Configuration)\</IntDir>
     <TargetName>$(ProjectName)-$(Configuration)</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>$(SolutionDir)bin\$(Platform)\</OutDir>
-    <IntDir>$(SolutionDir)bin\$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)bin\$(PlatformShortName)\</OutDir>
+    <IntDir>$(SolutionDir)bin\$(PlatformShortName)\$(Configuration)\</IntDir>
     <TargetName>$(ProjectName)-$(Configuration)</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>$(SolutionDir)bin\$(Platform)\</OutDir>
-    <IntDir>$(SolutionDir)bin\$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)bin\$(PlatformShortName)\</OutDir>
+    <IntDir>$(SolutionDir)bin\$(PlatformShortName)\$(Configuration)\</IntDir>
     <TargetName>$(ProjectName)-$(Configuration)</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>$(SolutionDir)bin\$(Platform)\</OutDir>
-    <IntDir>$(SolutionDir)bin\$(Platform)\$(Configuration)\</IntDir>
+    <OutDir>$(SolutionDir)bin\$(PlatformShortName)\</OutDir>
+    <IntDir>$(SolutionDir)bin\$(PlatformShortName)\$(Configuration)\</IntDir>
     <TargetName>$(ProjectName)-$(Configuration)</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -190,6 +190,7 @@
     <ClCompile Include="Hydrogenium\UtlKeyValues.ixx" />
     <ClCompile Include="Hydrogenium\UtlLinearAlgebra.ixx" />
     <ClCompile Include="Hydrogenium\UtlString.ixx" />
+    <ClCompile Include="Hydrogenium\UtlWinConsole.ixx" />
     <ClCompile Include="ImGuiFileDialog\ImGuiFileDialog.cpp" />
     <ClCompile Include="Source\Gui\Gui_Overview.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Use</PrecompiledHeader>

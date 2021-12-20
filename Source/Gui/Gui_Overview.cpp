@@ -6,6 +6,7 @@
 #include "Precompiled.hpp"
 
 import UtlColor;
+//import UtlWinConsole;
 
 inline ImVec4 ToImVec4(const Color4b& obj) noexcept
 {
@@ -122,14 +123,38 @@ void Gui::Overview::DrawWindow(void) noexcept
 		if (!bFileExists)
 			ImGui::PushStyleColor(ImGuiCol_FrameBg, (ImVec4)ImColor::HSV(0.98f, 0.2f, 1));
 
-		ImGui::InputText("BotProfile", &m_BotProfile);	// #UNDONE_LONG_TERM
+		ImGui::InputText("##BotProfile", &m_BotProfile);
 
 		if (!bFileExists)
 			ImGui::PopStyleColor();
 
+		// DB file selector
+
 		ImGui::SameLine();
-		if (ImGui::Button("..."))
-		ImGuiFileDialog::Instance()->OpenDialog()
+		if (ImGui::Button("BotProfile"))
+			ImGuiFileDialog::Instance()->OpenModal(
+				"ChooseBotProfile",	/* Hash string. */
+				"Choose a BotProfile...",
+				"Database file (*.db){.db}",
+				::MissionPack::Folder.string(),
+				"BotProfile.db"
+			);
+
+		if (ImGuiFileDialog::Instance()->Display("ChooseBotProfile", ImGuiWindowFlags_NoCollapse, ImVec2(360, 320)))
+		{
+			// action if OK
+			if (ImGuiFileDialog::Instance()->IsOk())
+			{
+				const auto szAbsPath = ImGuiFileDialog::Instance()->GetFilePathName();
+				m_BotProfile = CZFile::GetRelativePath(szAbsPath);
+
+				if (m_BotProfile.empty()) [[unlikely]]
+					std::cout << std::format("[Info] Path '{}' is not under CZero game.\n", szAbsPath);
+			}
+
+			// close
+			ImGuiFileDialog::Instance()->Close();
+		}
 #pragma endregion Bot profile path
 	}
 

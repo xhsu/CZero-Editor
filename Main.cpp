@@ -5,7 +5,7 @@ import UtlKeyValues;
 import UtlString;
 
 
-void ListKeyValue(ValveKeyValues* pkv)
+void ListKeyValue(ValveKeyValues* pkv) noexcept
 {
 	if (!pkv)
 		return;
@@ -32,7 +32,7 @@ void ListKeyValue(ValveKeyValues* pkv)
 	ImGui::TreePop();
 }
 
-void HelpMarker(const char* desc, ...)
+void HelpMarker(const char* desc, ...) noexcept
 {
 	va_list argptr{};
 	static constexpr size_t BUF_LEN = 2048;
@@ -53,7 +53,7 @@ void HelpMarker(const char* desc, ...)
 	}
 }
 
-void MainMenuBar(void)
+void MainMenuBar(void) noexcept
 {
 	bool bSaveAsSelected = false, bShouldOpenAbout = false;	// One frame variables.
 	static std::string szSaveTo;	// But this shouldn't.
@@ -100,14 +100,33 @@ void MainMenuBar(void)
 	if (bSaveAsSelected)
 		ImGui::OpenPopup("Save as...");
 
-		// Always center this window when appearing
+	// Always center this window when appearing
 	ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 
 	// Modal of Inserting character into list.
 	if (ImGui::BeginPopupModal("Save as...", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
 	{
-		ImGui::Text("Save as... (Full mission pack path)");
-		ImGui::InputText("##SaveTo", &szSaveTo);
+		ImGui::TextUnformatted("Save as... (Full mission pack path)");
+		ImGui::InputText("##SaveTo", &szSaveTo); ImGui::SameLine();
+
+		if (ImGui::Button("Select..."))
+			ImGuiFileDialog::Instance()->OpenDialog(
+				"ChooseSaveAs",
+				"Choose a Directory",
+				nullptr,
+				MissionPack::Folder.empty() ? "." : MissionPack::Folder.string()
+			);	// #TODO_BUG_REPORT the 4th parameter is also ignored?
+
+		// display
+		if (ImGuiFileDialog::Instance()->Display("ChooseSaveAs", ImGuiWindowFlags_NoCollapse, ImVec2(360, 320)))
+		{
+			// action if OK
+			if (ImGuiFileDialog::Instance()->IsOk())
+				szSaveTo = ImGuiFileDialog::Instance()->GetCurrentPath();
+
+			// close
+			ImGuiFileDialog::Instance()->Close();
+		}
 
 		if (ImGui::Button("OK", ImVec2(120, 0)))
 		{
@@ -122,7 +141,7 @@ void MainMenuBar(void)
 	}
 }
 
-void ConfigWindow(void)
+void ConfigWindow(void) noexcept
 {
 	static bool bFirstOpen = true;
 	static std::unordered_map<fs::path, MissionPack::Files_t> KnownMods;
@@ -186,7 +205,28 @@ void ConfigWindow(void)
 				fnOnGamePathChanged();
 		}
 
-		ImGui::Text("CZero game path:");
+		ImGui::TextUnformatted("CZero game path: "); ImGui::SameLine();
+		if (ImGui::Button("Select..."))
+			ImGuiFileDialog::Instance()->OpenModal(
+				"ChooseCZFolder",	/* Hash string. */
+				"Choose 'liblist.gam' under 'czero' folder...",
+				"Game res list (*.gam){.gam}",
+				g_szInputGamePath.empty() ? "." : g_szInputGamePath	/* Starting location. */
+			);	// #TODO_BUG_REPORT folder selection won't work.
+
+		if (ImGuiFileDialog::Instance()->Display("ChooseCZFolder", ImGuiWindowFlags_NoCollapse, ImVec2(360, 320)))
+		{
+			// action if OK
+			if (ImGuiFileDialog::Instance()->IsOk())
+			{
+				g_szInputGamePath = ImGuiFileDialog::Instance()->GetCurrentPath();
+				fnOnGamePathChanged();
+			}
+
+			// close
+			ImGuiFileDialog::Instance()->Close();
+		}
+
 		if (ImGui::InputText("##Game", &g_szInputGamePath))
 			fnOnGamePathChanged();
 
@@ -232,7 +272,7 @@ void ConfigWindow(void)
 	ImGui::End();	// Path
 }
 
-void CampaignWindow(void)
+void CampaignWindow(void) noexcept
 {
 	static struct  
 	{

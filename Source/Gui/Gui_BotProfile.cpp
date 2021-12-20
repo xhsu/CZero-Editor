@@ -427,6 +427,113 @@ static void fnListAttrib(void) noexcept	// Specialized for m_rgszWpn
 		ImGui::EndDisabled();
 }
 
+static void fnFileAttrib(void) noexcept
+{
+	using Reflection::BotProfile::VOICEBANK;
+
+	constexpr auto		pszAttribName = BotProfile_t::GetAttribName<VOICEBANK>();
+	const BotProfile_t*	pSource = bHandlingWithTemplates ? pBotProfOnEditing : nullptr;
+	std::string*		pValue = bHandlingWithTemplates ? pBotProfOnEditing->GetSelf<VOICEBANK>() : pBotProfOnEditing->Get<VOICEBANK>(&pSource);
+	const char*			pszSanityRet = pBotProfOnEditing->AttribSanity<VOICEBANK>(bHandlingWithTemplates);	// Nullptr means value makes sense.
+	bool				bValueValid = pBotProfOnEditing->AttribValid<VOICEBANK>();
+	std::string			szHintText = BotProfile_t::GetAttribIntro<VOICEBANK>() + "\n\nThis attribute is optional. Leave it blank if you don't know what to do."s;
+
+	// Red background for insane value.
+	if (pszSanityRet && bValueValid)
+		ImGui::PushStyleColor(ImGuiCol_FrameBg, (ImVec4)ImColor::HSV(0.98f, 0.2f, 1));
+
+	// Gray for invalid/template controlled value.
+	if (!bValueValid && !bHandlingWithTemplates)
+	{
+		ImGui::BeginDisabled();
+		ImGui::InputText("##Voicebank", pValue, ImGuiInputTextFlags_CharsNoBlank);
+		ImGui::SameLine(); ImGui::Button(pszAttribName);
+		ImGui::EndDisabled();
+
+		if (pSource == &BotProfileMgr::m_Default)
+			szHintText += "\n\nYou can't modify because this value was inherited from the Default.\nRight-click to introduce this attribute into character database.";
+		else
+			szHintText += "\n\nYou can't modify because this value was inherited from template \"" + pSource->m_szName + "\".\nRight-click to introduce this attribute into character database.";
+	}
+	else
+	{
+		ImGui::InputText("##Voicebank", pValue, ImGuiInputTextFlags_CharsNoBlank);
+
+		ImGui::SameLine();
+		if (ImGui::Button(pszAttribName))
+			ImGuiFileDialog::Instance()->OpenModal(
+				"ChooseVoicebank",	/* Hash string. */
+				"Choose a specialized BotChatter.db ...",
+				"Database file (*.db){.db}",
+				::MissionPack::Folder.string(),
+				"BotChatter.db"
+			);
+	}
+
+	if (pszSanityRet && bValueValid)
+	{
+		ImGui::PopStyleColor();
+		szHintText += "\n\nField ill-formed.\nReason: "s + pszSanityRet;
+	}
+
+	if (ImGuiFileDialog::Instance()->Display("ChooseVoicebank", ImGuiWindowFlags_NoCollapse, ImVec2(360, 320)))
+	{
+		// action if OK
+		if (ImGuiFileDialog::Instance()->IsOk())
+		{
+			const auto szAbsPath = ImGuiFileDialog::Instance()->GetFilePathName();
+			*pValue = CZFile::GetRelativePath(szAbsPath);
+
+			if (pValue->empty()) [[unlikely]]
+				std::cout << std::format("[Info] Path '{}' is not under CZero game.\n", szAbsPath);
+		}
+
+		// close
+		ImGuiFileDialog::Instance()->Close();
+	}
+
+	// Do the hint outside the style change.
+	ImGui::SameLine();
+	ImGui::TextDisabled("(?)");
+	if (ImGui::IsItemHovered())
+	{
+		ImGui::BeginTooltip();
+		ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
+		if (!bValueValid)
+		{
+			ImGui::PushStyleColor(ImGuiCol_Text, (ImVec4)ImColor(156, 0, 6));
+			ImGui::TextUnformatted("\"Voicebank\" fields from this profile is invalidated.\nField will not be saved into file.\n\n");
+			ImGui::PopStyleColor();
+		}
+		ImGui::TextUnformatted(szHintText.c_str());
+		ImGui::PopTextWrapPos();
+		ImGui::EndTooltip();
+	}
+
+	constexpr auto szAttribName = StringLiteral<char, strlen_c(pszAttribName)>(pszAttribName);
+	constexpr auto szPopupHashString = szAttribName + "##AddValueOfThisAttrib"_s;
+	constexpr auto szIntroduce = "Introduce \""_s + szAttribName + "\"."_s;
+	constexpr auto szSetAsInherit = "Use inherited \""_s + szAttribName + "\" value."_s;
+	constexpr auto szInvalidate = "Invalidate field \""_s + szAttribName + "\"."_s;
+
+	// Right-click to introduce or invalidate.
+	if (ImGui::BeginPopupContextItem(szPopupHashString))
+	{
+		if (!bValueValid && ImGui::MenuItem(szIntroduce))
+		{
+			*pBotProfOnEditing->GetSelf<VOICEBANK>() = *pValue;
+
+			if (pBotProfOnEditing->AttribSanity<VOICEBANK>(true))
+				pBotProfOnEditing->Rationalize<VOICEBANK>();
+		}
+
+		if (bValueValid && ImGui::MenuItem(bHandlingWithTemplates ? szInvalidate : szSetAsInherit))
+			pBotProfOnEditing->Invalidate<VOICEBANK>();
+
+		ImGui::EndPopup();
+	}
+}
+
 static void fnDisplayTemplateWithOverrideInfo(const TemplateNames_t& rgszTemplateList, const BotProfile_t& Tpl) noexcept
 {
 	using namespace Reflection::BotProfile;
@@ -599,7 +706,7 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 				fnAttrib<VOICEPITCH>(make_pair(5, 20));
 				fnAttrib<SKIN>();
 				fnComboAttrib();	// m_szTeam
-				fnAttrib<VOICEBANK>();	// #UNDONE_LONG_TERM file selection?
+				fnFileAttrib();
 
 				ImGui::EndTabItem();
 			}
@@ -638,7 +745,7 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 					fnAttrib<VOICEPITCH>(make_pair(5, 20));
 					fnAttrib<SKIN>();
 					fnComboAttrib();	// m_szTeam
-					fnAttrib<VOICEBANK>();	// #UNDONE_LONG_TERM file selection?
+					fnFileAttrib();
 
 					ImGui::NewLine();
 
@@ -753,7 +860,7 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 						fnAttrib<VOICEPITCH>(make_pair(5, 20));
 						fnAttrib<SKIN>();
 						fnComboAttrib();	// m_szTeam
-						fnAttrib<VOICEBANK>();	// #UNDONE_LONG_TERM file selection?
+						fnFileAttrib();
 
 						ImGui::NewLine();
 
@@ -1076,7 +1183,7 @@ void Gui::BotProfile::DrawWindow(void) noexcept
 							fnAttrib<VOICEPITCH>(std::make_pair(5, 20));
 							fnAttrib<SKIN>();
 							fnComboAttrib();	// m_szTeam
-							fnAttrib<VOICEBANK>();	// #UNDONE_LONG_TERM file selection?
+							fnFileAttrib();
 
 							auto pszErrorMessage = BotCopy.SanityCheck();	// A sanity a day keeps CTDs away.
 
