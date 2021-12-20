@@ -107,6 +107,9 @@
     <ClCompile Include="Source\Gui\Gui_Overview.cpp">
       <Filter>Gui</Filter>
     </ClCompile>
+    <ClCompile Include="ImGuiFileDialog\ImGuiFileDialog.cpp">
+      <Filter>ImGuiFileDialog</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="ImGui">
@@ -138,6 +141,9 @@
     </Filter>
     <Filter Include="Gui">
       <UniqueIdentifier>{b858ce57-ebb6-4ec0-af63-577443da0bf4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ImGuiFileDialog">
+      <UniqueIdentifier>{bdae8cd2-e46a-49ab-8a28-e7bce6b97727}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -180,6 +186,12 @@
     </ClInclude>
     <ClInclude Include="Hydrogenium\UtlFormatter.hpp">
       <Filter>Hydrogenium</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGuiFileDialog\ImGuiFileDialog.h">
+      <Filter>ImGuiFileDialog</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGuiFileDialog\ImGuiFileDialogConfig.h">
+      <Filter>ImGuiFileDialog</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -126,6 +126,10 @@ void Gui::Overview::DrawWindow(void) noexcept
 
 		if (!bFileExists)
 			ImGui::PopStyleColor();
+
+		ImGui::SameLine();
+		if (ImGui::Button("..."))
+		ImGuiFileDialog::Instance()->OpenDialog()
 #pragma endregion Bot profile path
 	}
 

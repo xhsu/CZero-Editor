@@ -190,6 +190,7 @@
     <ClCompile Include="Hydrogenium\UtlKeyValues.ixx" />
     <ClCompile Include="Hydrogenium\UtlLinearAlgebra.ixx" />
     <ClCompile Include="Hydrogenium\UtlString.ixx" />
+    <ClCompile Include="ImGuiFileDialog\ImGuiFileDialog.cpp" />
     <ClCompile Include="Source\Gui\Gui_Overview.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Use</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Use</PrecompiledHeader>
@@ -315,6 +316,8 @@
   <ItemGroup>
     <ClInclude Include="Hydrogenium\ScopedEnumOperator.hpp" />
     <ClInclude Include="Hydrogenium\UtlFormatter.hpp" />
+    <ClInclude Include="ImGuiFileDialog\ImGuiFileDialog.h" />
+    <ClInclude Include="ImGuiFileDialog\ImGuiFileDialogConfig.h" />
     <ClInclude Include="imgui\backends\imgui_impl_glfw.h" />
     <ClInclude Include="imgui\backends\imgui_impl_opengl3.h" />
     <ClInclude Include="imgui\backends\imgui_impl_opengl3_loader.h" />
